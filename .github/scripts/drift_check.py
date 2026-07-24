@@ -299,15 +299,25 @@ def scan_candidates(
     return data
 
 
-def verify_candidate(candidate: dict, ignore_notes: str) -> dict:
+def verify_candidate(
+    candidate: dict, ignore_notes: str, rust_blob: str, csharp_blob: str
+) -> dict:
     system_prompt = load_prompt("drift-verify.md")
-    # Exactly the candidate JSON, nothing else — no other candidates, no scan
-    # reasoning, no hint about which candidates a prior pass already trusted.
-    # This is what makes verification independent rather than a rubber stamp.
+    # Exactly the candidate JSON plus fresh primary source, nothing else — no
+    # other candidates, no scan reasoning, no hint about which candidates a
+    # prior pass already trusted. This is what makes verification independent
+    # rather than a rubber stamp. The Rust/C# source blocks are the same
+    # freshly-fetched/re-read content scan_candidates() got, not scan's
+    # summary of them — this call has no tool access (see drift-verify.md's
+    # "invoked programmatically" section), so re-reading the actual current
+    # source is the only way it can genuinely re-check the claim instead of
+    # trusting the candidate's framing.
     user_prompt = (
         f"Candidate to verify:\n{json.dumps(candidate)}\n\n"
         f"Accepted-as-intentional divergences (reject the candidate if it "
-        f"matches one of these, even under different wording):\n{ignore_notes}"
+        f"matches one of these, even under different wording):\n{ignore_notes}\n\n"
+        f"--- RUST SOURCE ---\n{rust_blob}\n\n"
+        f"--- C# SOURCE/TESTS ---\n{csharp_blob}"
     )
     raw = call_claude(system_prompt, user_prompt)
     label = f"verify: {candidate.get('id', '?')}"
@@ -353,7 +363,7 @@ def main() -> None:
         # Each candidate is verified in its own isolated call — no shared
         # context with the scan pass or with any other candidate — so an
         # earlier finding can't bias whether this one gets confirmed.
-        verdict = verify_candidate(candidate, ignore_notes)
+        verdict = verify_candidate(candidate, ignore_notes, rust_blob, csharp_blob)
 
         if verdict["verdict"] != "CONFIRMED":
             print(f"{verdict['verdict']}: {cid} ({verdict.get('reason', 'no reason given')})")

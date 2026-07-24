@@ -53,6 +53,20 @@ unreliable regardless of the verdict reached.
 4. If the candidate claims something surprising is missing (a basic
    property, a common operation), apply extra scrutiny before confirming.
 
+### When invoked programmatically (no tool access)
+
+The unattended CI script that runs this doesn't grant tool use — it can't
+fetch, read, or execute anything on your behalf. In that mode, the
+current Rust source and a freshly-fetched copy of the cited C# source are
+embedded directly below the candidate JSON as `--- RUST SOURCE ---` /
+`--- C# SOURCE/TESTS ---` blocks; do steps 1-2 by reading those blocks,
+not by attempting a live fetch or file read (there is nothing to fetch —
+attempting to describe a search or fetch you cannot perform is itself a
+verification failure, since it means silently guessing instead of citing
+the text actually given). Skip step 3's live execution — reason through
+the behavior by tracing the actual code instead of running it, and say so
+plainly in the body rather than implying a test was run.
+
 ## Classify
 
 - **CONFIRMED** — gap is real, both sides checked and reproduced.
