@@ -141,3 +141,100 @@ fn equals_via_operators() {
     assert_eq!(TimeSpan::from_ticks(10000), TimeSpan::from_ticks(10000));
     assert_ne!(TimeSpan::from_ticks(10000), TimeSpan::from_ticks(20000));
 }
+
+/// Mirrors the C# test helper's 6-arg overload, which adds a `Microseconds` check
+/// on top of the 5-arg helper.
+///
+/// Cf. TimeSpanTests.cs#L1697-L1702
+fn verify_time_span_micro(
+    ts: TimeSpan,
+    days: i32,
+    hours: i32,
+    minutes: i32,
+    seconds: i32,
+    milliseconds: i32,
+    microseconds: i32,
+) {
+    verify_time_span(ts, days, hours, minutes, seconds, milliseconds);
+    assert_eq!(microseconds, ts.microseconds());
+}
+
+/// Mirrors the C# test helper's 7-arg overload, which adds a `Nanoseconds` check
+/// on top of the 6-arg helper.
+///
+/// Cf. TimeSpanTests.cs#L1704-L1709
+fn verify_time_span_nano(
+    ts: TimeSpan,
+    days: i32,
+    hours: i32,
+    minutes: i32,
+    seconds: i32,
+    milliseconds: i32,
+    microseconds: i32,
+    nanoseconds: i32,
+) {
+    verify_time_span_micro(
+        ts,
+        days,
+        hours,
+        minutes,
+        seconds,
+        milliseconds,
+        microseconds,
+    );
+    assert_eq!(nanoseconds, ts.nanoseconds());
+}
+
+/// Cf. TimeSpanTests.cs#L87-92 (`Ctor_Int_Int_Int_Int_Int_Int`). The C# case is
+/// built via the 6-component constructor, which isn't implemented yet; rebuilt here
+/// from an equivalent tick count using the already-real per-unit constants.
+#[test]
+fn ctor_dhms_micro_equivalent() {
+    let ticks = 10 * TimeSpan::TICKS_PER_DAY
+        + 9 * TimeSpan::TICKS_PER_HOUR
+        + 8 * TimeSpan::TICKS_PER_MINUTE
+        + 7 * TimeSpan::TICKS_PER_SECOND
+        + 6 * TimeSpan::TICKS_PER_MILLISECOND
+        + 5 * TimeSpan::TICKS_PER_MICROSECOND;
+
+    verify_time_span_micro(TimeSpan::from_ticks(ticks), 10, 9, 8, 7, 6, 5);
+}
+
+/// Cf. TimeSpanTests.cs#L114-124 (`Ctor_Int_Int_Int_Int_Int_Int_WithNanosecond`).
+/// Same adaptation as above: builds the base instant from ticks instead of the
+/// still-stubbed constructor, then adds the extra ticks a nanosecond remainder
+/// would contribute, exactly as the C# test does.
+#[test]
+fn ctor_dhms_micro_with_nanosecond_equivalent() {
+    let base_ticks = 10 * TimeSpan::TICKS_PER_DAY
+        + 9 * TimeSpan::TICKS_PER_HOUR
+        + 8 * TimeSpan::TICKS_PER_MINUTE
+        + 7 * TimeSpan::TICKS_PER_SECOND
+        + 6 * TimeSpan::TICKS_PER_MILLISECOND
+        + 5 * TimeSpan::TICKS_PER_MICROSECOND;
+
+    for nanoseconds in [100i32, 300, 900] {
+        let ts = TimeSpan::from_ticks(base_ticks + (nanoseconds / 100) as i64);
+        verify_time_span_nano(ts, 10, 9, 8, 7, 6, 5, nanoseconds);
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1909-L1917 (`TestTotalMicroseconds`)
+#[test]
+fn total_microseconds() {
+    let cases: [(i64, f64); 3] = [(0, 0.0), (100, 10.0), (1_000, 100.0)];
+
+    for (ticks, expected) in cases {
+        assert_eq!(expected, TimeSpan::from_ticks(ticks).total_microseconds());
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1919-L1927 (`TestTotalNanoseconds`)
+#[test]
+fn total_nanoseconds() {
+    let cases: [(i64, f64); 3] = [(0, 0.0), (100, 10_000.0), (1_000, 100_000.0)];
+
+    for (ticks, expected) in cases {
+        assert_eq!(expected, TimeSpan::from_ticks(ticks).total_nanoseconds());
+    }
+}

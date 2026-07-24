@@ -3,7 +3,9 @@
   "csharp_source_repo": "dotnet/runtime",
   "csharp_source_branch": "main",
   "rust_files": [
-    "src/lib.rs"
+    "src/lib.rs",
+    "src/error.rs",
+    "src/time_span.rs"
   ],
   "csharp_sources": {
     "TimeSpan.cs": "src/libraries/System.Private.CoreLib/src/System/TimeSpan.cs"
