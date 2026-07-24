@@ -739,7 +739,11 @@ fn parse_invalid() {
     ];
 
     for (input, expected_err) in cases {
-        assert_eq!(Err(expected_err), input.parse::<TimeSpan>(), "parsing {input:?}");
+        assert_eq!(
+            Err(expected_err),
+            input.parse::<TimeSpan>(),
+            "parsing {input:?}"
+        );
     }
 
     // "00:60:00" and "24:00" (overflowing minutes/hours) are also part of the upstream

@@ -485,20 +485,21 @@ impl std::ops::Div<TimeSpan> for TimeSpan {
     }
 }
 
-/// Invariant-culture parsing only, mirroring `Parse(string)`/`TryParse`.
+/// Invariant-culture parsing only, mirroring `Parse(string)`/`TryParse`. See
+/// `time_span_parse.rs` for the algorithm (ported from `TimeSpanParse.cs`).
 ///
 /// C#'s `IFormatProvider`-aware overloads and the custom-format-string
-/// `ParseExact`/`TryParseExact`/`ToString(format)`/`TryFormat` family are deferred:
-/// their shape depends on `TimeSpanParse.cs`/`TimeSpanFormat.cs`, which haven't been
-/// read yet, so this skeleton doesn't guess at a Rust equivalent for culture/format-string
-/// handling.
+/// `ParseExact`/`TryParseExact`/`ToString(format)`/`TryFormat` family remain deferred:
+/// their shape depends on more of `TimeSpanParse.cs`/`TimeSpanFormat.cs` than the
+/// invariant standard-format grammar this impl covers, so this doesn't guess at a Rust
+/// equivalent for custom-format-string/culture handling.
 ///
 /// Cf. TimeSpan.cs#L722-L727
 impl FromStr for TimeSpan {
     type Err = TimeSpanError;
 
-    fn from_str(_s: &str) -> Result<Self, Self::Err> {
-        todo!()
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::time_span_parse::parse(s)
     }
 }
 
