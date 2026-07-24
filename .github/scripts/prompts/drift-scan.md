@@ -52,6 +52,19 @@ fields:
 Include only these fields — no confidence level, no reasoning, no
 comparison to other candidates.
 
+When invoked programmatically, output exactly one JSON array containing
+all candidates, nothing else outside it — not one fenced block per
+candidate:
+
+```json
+[
+  { "id": "...", "csharp_behavior": "...", "rust_behavior": "...", "citation": "...", "divergence_class": "..." },
+  { "id": "...", "csharp_behavior": "...", "rust_behavior": "...", "citation": "...", "divergence_class": "..." }
+]
+```
+
+An empty array (`[]`) means no candidates found.
+
 ## Known divergence classes to check
 
 - **Missing test**: every C# test case (each `[InlineData]`/`[Theory]` row,
