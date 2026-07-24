@@ -637,3 +637,152 @@ fn ctor_dhms_micro_invalid() {
         .is_err()
     );
 }
+
+/// Cf. TimeSpanTests.cs#L1006-L1104 (`Parse_Valid_TestData`/`Parse`), restricted to the
+/// `provider: null`/`CultureInfo.InvariantCulture` rows — culture-specific rows (e.g. the
+/// `hr-HR` comma-decimal case) are out of scope for invariant-only `from_str`.
+///
+/// Expected tick counts were cross-checked against a live `dotnet100csharpcoreclr` run of
+/// `TimeSpan.Parse(input, CultureInfo.InvariantCulture).Ticks` for every row below, not just
+/// hand-derived from the day/hour/minute/second/ms constants.
+#[test]
+fn parse_valid() {
+    // (input, expected ticks, whether "-" + input is also expected to parse to the negation
+    // — false only for the leading-whitespace rows, mirroring the C# test's
+    // `!char.IsWhiteSpace(input[0])` guard on the negation assertion)
+    let cases: [(&str, i64, bool); 38] = [
+        ("       12:24:02", 446_420_000_000, false),
+        ("12:24:02      ", 446_420_000_000, true),
+        ("     12:24:02      ", 446_420_000_000, false),
+        ("0", 0, true),
+        ("12:24", 446_400_000_000, true),
+        ("12:24:02", 446_420_000_000, true),
+        ("12.03:04", 10_478_400_000_000, true),
+        ("12:24:02.01", 446_420_100_000, true),
+        ("1:1:1.0", 36_610_000_000, true),
+        ("1:1:1.0000000", 36_610_000_000, true),
+        ("1:1:1.1", 36_611_000_000, true),
+        ("1:1:1.01", 36_610_100_000, true),
+        ("1:1:1.001", 36_610_010_000, true),
+        ("1:1:1.0001", 36_610_001_000, true),
+        ("1:1:1.00001", 36_610_000_100, true),
+        ("1:1:1.000001", 36_610_000_010, true),
+        ("1:1:1.0000001", 36_610_000_001, true),
+        ("1.12:24:02", 1_310_420_000_000, true),
+        ("1:12:24:02", 1_310_420_000_000, true),
+        ("01.23:45:.67", 1_719_006_700_000, true),
+        ("1.12:24:02.999", 1_310_429_990_000, true),
+        ("1:1:.1", 36_601_000_000, true),
+        ("1:1:.01", 36_600_100_000, true),
+        ("1:1:.001", 36_600_010_000, true),
+        ("1:1:.0001", 36_600_001_000, true),
+        ("1:1:.00001", 36_600_000_100, true),
+        ("1:1:.000001", 36_600_000_010, true),
+        ("1:1:.0000001", 36_600_000_001, true),
+        ("10675199", 9_223_371_936_000_000_000, true),
+        ("10675199:00:00", 9_223_371_936_000_000_000, true),
+        ("10675199:02:00:00", 9_223_372_008_000_000_000, true),
+        ("10675199:02:48:00", 9_223_372_036_800_000_000, true),
+        ("10675199:02:48:05", 9_223_372_036_850_000_000, true),
+        ("10675199:02:48:05.4775", 9_223_372_036_854_775_000, true),
+        ("00:00:59", 590_000_000, true),
+        ("00:59:00", 35_400_000_000, true),
+        ("23:00:00", 828_000_000_000, true),
+        ("24:00:00", 20_736_000_000_000, true),
+    ];
+
+    for (input, expected_ticks, negatable) in cases {
+        let expected = TimeSpan::from_ticks(expected_ticks);
+        assert_eq!(Ok(expected), input.parse::<TimeSpan>(), "parsing {input:?}");
+
+        if negatable {
+            let negated = format!("-{input}");
+            assert_eq!(
+                Ok(TimeSpan::from_ticks(-expected_ticks)),
+                negated.parse::<TimeSpan>(),
+                "parsing {negated:?}"
+            );
+        }
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1106-L1160 (`Parse_Invalid_TestData`/`Parse_Invalid`), restricted to
+/// the `provider: null` rows minus the `null` input case (no `&str` equivalent of a null
+/// `string` to parse) and the `hr-HR` culture-specific row.
+#[test]
+fn parse_invalid() {
+    let cases: [(&str, TimeSpanError); 24] = [
+        ("", TimeSpanError::InvalidFormat),
+        ("-", TimeSpanError::InvalidFormat),
+        ("garbage", TimeSpanError::InvalidFormat),
+        ("12/12/12", TimeSpanError::InvalidFormat),
+        ("00:", TimeSpanError::InvalidFormat),
+        ("00:00:-01", TimeSpanError::InvalidFormat),
+        ("\u{0}12:34:56", TimeSpanError::InvalidFormat),
+        ("1\u{0}2:34:56", TimeSpanError::InvalidFormat),
+        ("12\u{0}:34:56", TimeSpanError::InvalidFormat),
+        ("00:00::00", TimeSpanError::InvalidFormat),
+        ("00:00:00:", TimeSpanError::InvalidFormat),
+        ("00:00:00:00:00:00:00:00", TimeSpanError::InvalidFormat),
+        ("1:1:1.99999999", TimeSpanError::Overflow),
+        ("2147483647", TimeSpanError::Overflow),
+        ("2147483648", TimeSpanError::Overflow),
+        ("10675200", TimeSpanError::Overflow),
+        ("10675200:00:00", TimeSpanError::Overflow),
+        ("10675199:03:00:00", TimeSpanError::Overflow),
+        ("10675199:02:49:00", TimeSpanError::Overflow),
+        ("10675199:02:48:06", TimeSpanError::Overflow),
+        ("-10675199:02:48:06", TimeSpanError::Overflow),
+        ("10675199:02:48:05.4776", TimeSpanError::Overflow),
+        ("-10675199:02:48:05.4776", TimeSpanError::Overflow),
+        ("00:00:60", TimeSpanError::Overflow),
+    ];
+
+    for (input, expected_err) in cases {
+        assert_eq!(Err(expected_err), input.parse::<TimeSpan>(), "parsing {input:?}");
+    }
+
+    // "00:60:00" and "24:00" (overflowing minutes/hours) are also part of the upstream
+    // data set but share a row type with the table above; kept separate only because
+    // Rust doesn't need the array to be homogeneous in any special way — listed here for
+    // strict 1:1 parity with the upstream rows rather than folding them silently into the
+    // table above out of order.
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        "00:60:00".parse::<TimeSpan>(),
+        "parsing \"00:60:00\""
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        "24:00".parse::<TimeSpan>(),
+        "parsing \"24:00\""
+    );
+}
+
+/// Cf. TimeSpanTests.cs#L1730-L1752 (`ParseDifferentLengthFractionWithLeadingZerosData`/
+/// `ParseDifferentLengthFractionWithLeadingZeros`), `Parse` half only — the `ParseExact(..,
+/// "g", ..)` half is out of scope for invariant-only `from_str`.
+#[test]
+fn parse_different_length_fraction_with_leading_zeros() {
+    let cases: [(&str, i64); 11] = [
+        ("00:00:00.00000001", 0),
+        ("00:00:00.00000005", 1),
+        ("00:00:00.09999999", 1_000_000),
+        ("00:00:00.0268435455", 268_435),
+        ("00:00:00.01", 100_000),
+        ("0:00:00.01000000", 100_000),
+        ("0:00:00.010000000", 100_000),
+        ("0:00:00.0123456", 123_456),
+        ("0:00:00.00123456", 12_346),
+        ("0:00:00.00000098", 10),
+        ("0:00:00.00000099", 10),
+    ];
+
+    for (input, expected_ticks) in cases {
+        assert_eq!(
+            Ok(TimeSpan::from_ticks(expected_ticks)),
+            input.parse::<TimeSpan>(),
+            "parsing {input:?}"
+        );
+    }
+}
