@@ -1,0 +1,40 @@
+name: C# Drift Check
+
+on:
+  # 06:00 UTC on the 1st and 15th of each month — approximates a 2-week cadence.
+  schedule:
+    - cron: '0 6 1,15 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure drift label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -f .github/scripts/drift_config.json ]; then
+            echo "::error::.github/scripts/drift_config.json is missing. Copy" \
+                 "drift_config.json.example to drift_config.json and fill in" \
+                 "csharp_source_repo/rust_files/csharp_sources/label for this" \
+                 "project."
+            exit 1
+          fi
+          label=$(python3 -c "import json; print(json.load(open('.github/scripts/drift_config.json'))['label'])")
+          gh label create "$label" \
+            --color FBCA04 \
+            --description "Behavioral gap vs upstream C# source" \
+            --force
+
+      - name: Run drift check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/drift_check.py

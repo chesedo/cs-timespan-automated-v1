@@ -1,0 +1,90 @@
+name: Benchmark regression check
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "benches/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/bench.yml"
+
+jobs:
+  gungraun:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: DeterminateSystems/nix-installer-action@v12
+
+      - uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      # Bench targets are discovered by naming convention (benches/*_gungraun.rs)
+      # rather than hardcoded, so adding a new gungraun bench doesn't require
+      # editing this workflow.
+      - name: Discover gungraun bench targets
+        id: benches
+        run: |
+          names=$(cd benches 2>/dev/null && ls *_gungraun.rs 2>/dev/null | sed 's/\.rs$//' || true)
+          if [ -z "$names" ]; then
+            echo "No benches/*_gungraun.rs files found — nothing to run."
+            echo "has_benches=false" >> "$GITHUB_OUTPUT"
+          else
+            args=$(echo "$names" | sed 's/^/--bench /' | tr '\n' ' ')
+            echo "has_benches=true" >> "$GITHUB_OUTPUT"
+            echo "bench_args=$args" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Benchmark base branch
+        id: base
+        if: steps.benches.outputs.has_benches == 'true'
+        run: |
+          git worktree add /tmp/base "${{ github.event.pull_request.base.sha }}"
+          base_names=$(cd /tmp/base/benches 2>/dev/null && ls *_gungraun.rs 2>/dev/null | sed 's/\.rs$//' || true)
+          if [ -n "$base_names" ]; then
+            base_args=$(echo "$base_names" | sed 's/^/--bench /' | tr '\n' ' ')
+            nix develop --command cargo bench --manifest-path /tmp/base/Cargo.toml $base_args -- --save-baseline=base
+            echo "has_baseline=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gungraun benches don't exist on the base branch yet — nothing to compare against."
+            echo "has_baseline=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Instruction counts from gungraun (valgrind/callgrind) are deterministic
+      # regardless of runner noise, so a same-job base-vs-head diff needs no
+      # statistical smoothing: any change over the soft_limits threshold set in
+      # benches/*_gungraun.rs is a real regression, not noise, and fails this job.
+      - name: Benchmark PR head and compare against base
+        if: steps.benches.outputs.has_benches == 'true'
+        env:
+          BENCH_ARGS: ${{ steps.benches.outputs.bench_args }}
+          HAS_BASELINE: ${{ steps.base.outputs.has_baseline }}
+        run: |
+          set +e
+          if [ "$HAS_BASELINE" = "true" ]; then
+            nix develop --command cargo bench $BENCH_ARGS -- --baseline=base 2>&1 | tee /tmp/gungraun-output.txt
+          else
+            {
+              echo "No baseline available on the base branch (gungraun benches were just introduced), so this run only establishes numbers — nothing to compare against yet."
+              echo
+              nix develop --command cargo bench $BENCH_ARGS
+            } 2>&1 | tee /tmp/gungraun-output.txt
+          fi
+          status="${PIPESTATUS[0]}"
+          set -e
+
+          {
+            echo "## Gungraun benchmark comparison (PR head vs base)"
+            echo
+            echo '```'
+            cat /tmp/gungraun-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$status"
