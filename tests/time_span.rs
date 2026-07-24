@@ -4,7 +4,7 @@
 //! test coverage-parity rule; the rest lands via the drift-scan/work-issue loop as
 //! more of the C# surface gets real implementations.
 
-use cs_timespan_automated_v1::TimeSpan;
+use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
 
 /// Mirrors the C# test helper `VerifyTimeSpan(TimeSpan, int, int, int, int, int)`
 /// (TimeSpanTests.cs#L1686-L1695), minus its `Assert.Equal(timeSpan, +timeSpan)`
@@ -237,4 +237,118 @@ fn total_nanoseconds() {
     for (ticks, expected) in cases {
         assert_eq!(expected, TimeSpan::from_ticks(ticks).total_nanoseconds());
     }
+}
+
+/// `checked_add` performs real tick addition and only reports overflow via the
+/// two's-complement sign-bit check that `operator+` uses (TimeSpan.cs#L893-L905),
+/// not unconditionally.
+///
+/// Cf. TimeSpanTests.cs (`Add`), TimeSpan.cs#L389, #L893-L905
+#[test]
+fn checked_add_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(2)),
+        TimeSpan::from_ticks(1).checked_add(TimeSpan::from_ticks(1))
+    );
+}
+
+/// `TimeSpan.MaxValue + TimeSpan.FromTicks(1)` throws `OverflowException` in C#
+/// because the result's sign flips relative to two identically-signed operands.
+///
+/// Cf. TimeSpan.cs#L893-L905
+#[test]
+fn checked_add_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::MAX.checked_add(TimeSpan::from_ticks(1))
+    );
+}
+
+/// `TimeSpan.MaxValue + TimeSpan.MinValue` does NOT throw in C#: the operands have
+/// opposite signs, so the sign-bit overflow check never triggers, and the true
+/// two's-complement sum (`-1` tick) is returned.
+///
+/// Cf. TimeSpan.cs#L893-L905
+#[test]
+fn checked_add_opposite_signs_no_overflow() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-1)),
+        TimeSpan::MAX.checked_add(TimeSpan::MIN)
+    );
+}
+
+/// Cf. TimeSpanTests.cs (`Subtract`), TimeSpan.cs#L687, #L877-L889
+#[test]
+fn checked_sub_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(2)),
+        TimeSpan::from_ticks(5).checked_sub(TimeSpan::from_ticks(3))
+    );
+}
+
+/// `TimeSpan.MinValue - TimeSpan.FromTicks(1)` throws `OverflowException` in C#.
+///
+/// Cf. TimeSpan.cs#L877-L889
+#[test]
+fn checked_sub_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::MIN.checked_sub(TimeSpan::from_ticks(1))
+    );
+}
+
+/// `TimeSpan.MaxValue - TimeSpan.MinValue` DOES throw in C#: the operands have
+/// different signs and the two's-complement result's sign is opposite `t1`'s,
+/// which is exactly what the subtraction overflow check flags.
+///
+/// Cf. TimeSpan.cs#L877-L889
+#[test]
+fn checked_sub_different_signs_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::MAX.checked_sub(TimeSpan::MIN)
+    );
+}
+
+/// `operator+` mirrors `checked_add` for the non-overflowing case.
+///
+/// Cf. TimeSpan.cs#L893-L905
+#[test]
+fn add_operator_basic() {
+    assert_eq!(
+        TimeSpan::from_ticks(2),
+        TimeSpan::from_ticks(1) + TimeSpan::from_ticks(1)
+    );
+}
+
+/// `operator+` throws `OverflowException` in C#; Rust's `Add` trait can't return a
+/// `Result`, so the established pattern in this crate is to panic instead, mirroring
+/// the C# exception at the operator layer while `checked_add` stays the fallible API.
+///
+/// Cf. TimeSpan.cs#L893-L905
+#[test]
+#[should_panic]
+fn add_operator_overflow_panics() {
+    let _ = TimeSpan::MAX + TimeSpan::from_ticks(1);
+}
+
+/// `operator-` mirrors `checked_sub` for the non-overflowing case.
+///
+/// Cf. TimeSpan.cs#L877-L889
+#[test]
+fn sub_operator_basic() {
+    assert_eq!(
+        TimeSpan::from_ticks(2),
+        TimeSpan::from_ticks(5) - TimeSpan::from_ticks(3)
+    );
+}
+
+/// `operator-` throws `OverflowException` in C#; ported as a panic for the same
+/// reason `operator+` is (see `add_operator_overflow_panics`).
+///
+/// Cf. TimeSpan.cs#L877-L889
+#[test]
+#[should_panic]
+fn sub_operator_overflow_panics() {
+    let _ = TimeSpan::MIN - TimeSpan::from_ticks(1);
 }
