@@ -2608,11 +2608,13 @@ fn from_hours_parts_basic() {
         TimeSpan::from_hours_parts(1, 1, 1, 1, 1)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-(TimeSpan::TICKS_PER_HOUR
-            + TimeSpan::TICKS_PER_MINUTE
-            + TimeSpan::TICKS_PER_SECOND
-            + TimeSpan::TICKS_PER_MILLISECOND
-            + TimeSpan::TICKS_PER_MICROSECOND))),
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_HOUR
+                + TimeSpan::TICKS_PER_MINUTE
+                + TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
         TimeSpan::from_hours_parts(-1, -1, -1, -1, -1)
     );
     assert_eq!(
@@ -2670,16 +2672,15 @@ fn from_minutes_parts_basic() {
         TimeSpan::from_minutes_parts(1, 1, 1, 1)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-(TimeSpan::TICKS_PER_MINUTE
-            + TimeSpan::TICKS_PER_SECOND
-            + TimeSpan::TICKS_PER_MILLISECOND
-            + TimeSpan::TICKS_PER_MICROSECOND))),
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_MINUTE
+                + TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
         TimeSpan::from_minutes_parts(-1, -1, -1, -1)
     );
-    assert_eq!(
-        Ok(TimeSpan::ZERO),
-        TimeSpan::from_minutes_parts(0, 0, 0, 0)
-    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_minutes_parts(0, 0, 0, 0));
 }
 
 /// Cf. TimeSpanTests.cs#L629-637 (`FromMinutes_Int_ShouldOverflow`)
@@ -2726,14 +2727,18 @@ fn from_minutes_parts_overflow() {
 fn from_seconds_parts_basic() {
     assert_eq!(
         Ok(TimeSpan::from_ticks(
-            TimeSpan::TICKS_PER_SECOND + TimeSpan::TICKS_PER_MILLISECOND + TimeSpan::TICKS_PER_MICROSECOND
+            TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND
         )),
         TimeSpan::from_seconds_parts(1, 1, 1)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-(TimeSpan::TICKS_PER_SECOND
-            + TimeSpan::TICKS_PER_MILLISECOND
-            + TimeSpan::TICKS_PER_MICROSECOND))),
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
         TimeSpan::from_seconds_parts(-1, -1, -1)
     );
     assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_seconds_parts(0, 0, 0));
@@ -2806,8 +2811,9 @@ fn from_milliseconds_parts_basic() {
         TimeSpan::from_milliseconds_parts(1, 1)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-(TimeSpan::TICKS_PER_MILLISECOND
-            + TimeSpan::TICKS_PER_MICROSECOND))),
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_MILLISECOND + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
         TimeSpan::from_milliseconds_parts(-1, -1)
     );
     assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_milliseconds_parts(0, 0));
