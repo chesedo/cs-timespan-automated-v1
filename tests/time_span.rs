@@ -1156,6 +1156,157 @@ fn parse_exact_standard_invalid() {
     }
 }
 
+/// Cf. `TimeSpanTests.cs`'s `ParseExactTest_Valid` body (TimeSpanTests.cs#L1209-1234),
+/// which re-asserts every `ParseExact_Valid_TestData` row against the single-format-wrapped-
+/// in-an-array overload (`TimeSpan.ParseExact(input, new string[] { format }, ...)`) too —
+/// a single-element array must behave identically to the plain single-format overload.
+#[test]
+fn parse_exact_multiple_single_format_matches_parse_exact() {
+    let cases: [(&str, &str, TimeSpan); 5] = [
+        (
+            "12.23:32:43",
+            r"dd\.h\:m\:s",
+            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+        ),
+        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
+        (
+            "678",
+            "fff",
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
+        ),
+        ("1.12:24:02", "c", TimeSpan::from_dhms(1, 12, 24, 2).unwrap()),
+        ("12:24:02", "g", TimeSpan::from_hms(12, 24, 2).unwrap()),
+    ];
+
+    for (input, format, expected) in cases {
+        assert_eq!(
+            Ok(expected),
+            TimeSpan::parse_exact_multiple(input, &[format], TimeSpanStyles::None),
+            "parsing {input:?} against single-element formats array {format:?}"
+        );
+    }
+}
+
+/// Cf. `TimeSpanTests.cs`'s `ParseExactTest_Valid` body (TimeSpanTests.cs#L1234, #L1239):
+/// `TimeSpanStyles.AssumeNegative` is honored the same way through the array overload as
+/// through the single-format overload (for the custom-format-string rows it applies to).
+#[test]
+fn parse_exact_multiple_assume_negative() {
+    let cases: [(&str, &str, TimeSpan); 2] = [
+        (
+            "12.23:32:43",
+            r"dd\.h\:m\:s",
+            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+        ),
+        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
+    ];
+
+    for (input, format, expected) in cases {
+        assert_eq!(
+            Ok(-expected),
+            TimeSpan::parse_exact_multiple(input, &[format], TimeSpanStyles::AssumeNegative),
+            "parsing {input:?} against single-element formats array {format:?} with \
+             AssumeNegative"
+        );
+    }
+}
+
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): formats are tried in
+/// array order, and the first one that matches wins. `"%h"` against `"3"` fails outright
+/// (no `:` literal for `%h` to match against, so it's not just "wrong interpretation" —
+/// `hh\:mm\:ss` requires two digits then a literal `:`, which a bare `"3"` doesn't have),
+/// so the array must fall through to `"%h"` and succeed there.
+#[test]
+fn parse_exact_multiple_tries_formats_in_order() {
+    assert_eq!(
+        Ok(TimeSpan::from_hms(3, 0, 0).unwrap()),
+        TimeSpan::parse_exact_multiple("3", &[r"hh\:mm\:ss", "%h"], TimeSpanStyles::None),
+        "first format should fail to match, falling through to the second"
+    );
+}
+
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): order-sensitivity is
+/// also observable in *which* value results, not just whether parsing succeeds — `"%h"` and
+/// `"%m"` both accept a single digit, but interpret it differently, so swapping which comes
+/// first in the array changes the parsed result.
+#[test]
+fn parse_exact_multiple_first_match_determines_interpretation() {
+    assert_eq!(
+        Ok(TimeSpan::from_hms(3, 0, 0).unwrap()),
+        TimeSpan::parse_exact_multiple("3", &["%h", "%m"], TimeSpanStyles::None),
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_hms(0, 3, 0).unwrap()),
+        TimeSpan::parse_exact_multiple("3", &["%m", "%h"], TimeSpanStyles::None),
+    );
+}
+
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): `formats.Length == 0`
+/// is a distinct `SetNoFormatSpecifierFailure` bad-format failure — there's no `&str`
+/// equivalent of C#'s separate `formats == null` -> `ArgumentNullException` case in this
+/// crate (a `&[&str]` can't be null), but the empty-slice case still applies and, like every
+/// other format failure in this crate, maps to `TimeSpanError::InvalidFormat`.
+#[test]
+fn parse_exact_multiple_empty_formats_array() {
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::parse_exact_multiple("12:34:56", &[], TimeSpanStyles::None),
+    );
+}
+
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): an empty format string
+/// anywhere in the array (`string.IsNullOrEmpty(format)`) is an immediate
+/// `SetBadFormatSpecifierFailure`, returned right away rather than being skipped in favor of
+/// a later entry that would otherwise have matched — this is the one case in the loop that
+/// doesn't fall through to try the next format.
+#[test]
+fn parse_exact_multiple_empty_format_stops_immediately() {
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::parse_exact_multiple("3", &["", "%h"], TimeSpanStyles::None),
+        "an empty format entry must fail immediately, not be skipped in favor of a later \
+         match"
+    );
+}
+
+/// Cf. `TimeSpanTests.cs`'s `ParseExactTest_Invalid` body (TimeSpanTests.cs#L1313-1315):
+/// `exceptionTypeMultiple = exceptionType == typeof(OverflowException) ... ?
+/// typeof(FormatException) : exceptionType` — `TryParseExactMultipleTimeSpan`'s per-format
+/// attempts always run with `throwOnFailure: false` (a fresh, independent `TimeSpanResult`
+/// each time), so an individual attempt's `OverflowException` is discarded exactly like an
+/// individual attempt's `FormatException` would be; only the generic `SetBadTimeSpanFailure`
+/// bad-format failure surfaces once every format in the array has failed. So even a
+/// single-element array around a format that would overflow on its own turns that Overflow
+/// into InvalidFormat here, unlike `TimeSpan::parse_exact` on the same input/format pair.
+#[test]
+fn parse_exact_multiple_overflow_becomes_invalid_format() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::parse_exact("12.35:32:43", r"dd\.h\:m\:s", TimeSpanStyles::None),
+        "sanity check: the single-format overload reports Overflow directly"
+    );
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::parse_exact_multiple(
+            "12.35:32:43",
+            &[r"dd\.h\:m\:s"],
+            TimeSpanStyles::None
+        ),
+        "the array overload must not leak the inner Overflow — it's swallowed into the \
+         generic bad-format failure once every format has failed"
+    );
+}
+
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): when no format in the
+/// array matches, the loop falls off the end into `SetBadTimeSpanFailure`.
+#[test]
+fn parse_exact_multiple_no_format_matches() {
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::parse_exact_multiple("garbage", &["%h", "%m", "%s"], TimeSpanStyles::None),
+    );
+}
+
 /// `checked_neg` mirrors C#'s instance `Negate()`, which delegates to `operator-`
 /// (TimeSpan.cs#L683, #L868-L875).
 ///
