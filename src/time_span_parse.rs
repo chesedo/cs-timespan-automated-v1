@@ -1,4 +1,5 @@
-//! Invariant-culture `TimeSpan::from_str` (mirrors C#'s `Parse(string)`/`TryParse`).
+//! Invariant-culture `TimeSpan::from_str` (mirrors C#'s `Parse(string)`/`TryParse`), plus the
+//! `"g"`/`"G"` standard formats accepted by `TimeSpan::parse_exact`.
 //!
 //! Ports the standard-format half of `TimeSpanParse.cs`
 //! (`src/libraries/System.Private.CoreLib/src/System/Globalization/TimeSpanParse.cs`):
@@ -6,10 +7,15 @@
 //! resulting shape against the "d.h:m:s.f" grammar (`ProcessTerminalState` and its
 //! `ProcessTerminal_*` helpers). The custom-format-string half (`TryParseByFormat`) lives
 //! in `time_span_parse_exact.rs` instead — a different, char-level tokenizer entirely; see
-//! that module's doc comment. `IFormatProvider`/culture-aware parsing and the single-letter
-//! standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`) accepted by `ParseExact` remain out of
-//! scope everywhere in this crate; see the `FromStr` impl's doc comment in `time_span.rs`
-//! and `TimeSpan::parse_exact`'s doc comment.
+//! that module's doc comment. The `"c"`/`"t"`/`"T"` legacy constant format lives in
+//! `time_span_parse_constant.rs` — yet another, unrelated algorithm; see its doc comment.
+//!
+//! `Parse`/`TryParse` use `TimeSpanStandardStyles.Any` (`Invariant | Localized`,
+//! TimeSpanParse.cs#L630/639), while `ParseExact`'s `"g"` uses `Localized` alone and `"G"`
+//! adds `RequireFull` (TimeSpanParse.cs#L1240-1241) — see [`parse_with_style`]'s doc comment
+//! for how those map onto this invariant-only port. `IFormatProvider`/culture-aware parsing
+//! generally remains out of scope everywhere in this crate; see the `FromStr` impl's doc
+//! comment in `time_span.rs` and `TimeSpan::parse_exact`'s doc comment.
 
 use crate::{TimeSpan, TimeSpanError};
 
@@ -52,8 +58,13 @@ const APP_COMPAT_LITERAL: &str = ":.";
 /// `Parse`/`TryParse` therefore accepts either separator (confirmed empirically: `"24:00:00"`
 /// parses as 24 days rather than throwing on an out-of-range "24 hours", since the "h:m:s"
 /// shape is tried first, fails its 0-23 hour bound, and falls back to "d:h:m").
-fn is_day_hour_sep(sep: &str) -> bool {
-    sep == "." || sep == ":"
+///
+/// `allow_invariant` is `false` for `parse_exact`'s `"g"`/`"G"` formats (style `Localized`
+/// only, no `Invariant`): only `':'` is accepted then, matching
+/// `DateTimeFormatInfo.FullTimeSpanPositivePattern`'s day/hour separator with no fallback to
+/// the plain-Invariant `'.'` literal — see [`parse_with_style`]'s doc comment.
+fn is_day_hour_sep(sep: &str, allow_invariant: bool) -> bool {
+    sep == ":" || (allow_invariant && sep == ".")
 }
 
 /// A parsed numeric token: the value plus its count of leading zero digits (leading zeroes
@@ -162,8 +173,49 @@ impl Lexer {
 
 /// Parses `s` per invariant-culture `TimeSpan.Parse`/`TryParse` semantics.
 ///
-/// Cf. TimeSpanParse.cs's `TryParseTimeSpan` (TimeSpanParse.cs#L694-727)
+/// Cf. TimeSpanParse.cs's `TryParseTimeSpan` with `style = TimeSpanStandardStyles.Any`
+/// (TimeSpanParse.cs#L630/639, #L694-727)
 pub(crate) fn parse(s: &str) -> Result<TimeSpan, TimeSpanError> {
+    parse_with_style(s, true, false)
+}
+
+/// Parses `s` per `TimeSpan::parse_exact`'s `"g"`/`"G"` standard formats.
+///
+/// Cf. TimeSpanParse.cs#L1240-1241:
+/// ```csharp
+/// 'g' => TryParseTimeSpan(input, TimeSpanStandardStyles.Localized, formatProvider, ref result),
+/// 'G' => TryParseTimeSpan(input, TimeSpanStandardStyles.Localized | TimeSpanStandardStyles.RequireFull, formatProvider, ref result),
+/// ```
+pub(crate) fn parse_general(s: &str, require_full: bool) -> Result<TimeSpan, TimeSpanError> {
+    parse_with_style(s, false, require_full)
+}
+
+/// Shared implementation behind [`parse`] (regular `Parse`/`TryParse`, style `Any` —
+/// `Invariant | Localized`) and [`parse_general`] (`ParseExact`'s `"g"`/`"G"`, style
+/// `Localized`, with `"G"` adding `RequireFull`).
+///
+/// C#'s `TimeSpanStandardStyles.Invariant` and `.Localized` are two distinct literal-pattern
+/// tables (`TimeSpanFormat.PositiveInvariantFormatLiterals` vs. a per-culture
+/// `DateTimeFormatInfo.FullTimeSpanPositivePattern`-derived table); under
+/// `CultureInfo.InvariantCulture` specifically — the only culture this crate has any notion
+/// of — those two tables are identical in every literal *except* the days/hours separator
+/// (`'.'` for Invariant, `':'` for Localized; both use `':'` for hour/minute and
+/// minute/second, `'.'` for the fraction separator, and empty start/end). So the only
+/// behavioral difference `allow_invariant_day_sep` needs to encode is exactly that one
+/// separator choice — see [`is_day_hour_sep`]'s doc comment — not a second parallel set of
+/// literal tables.
+///
+/// `RequireFull` (TimeSpanParse.cs's `ProcessTerminal_D`/`_HM`/`_HM_S_D`/`_HMS_F_D` each bail
+/// out immediately when it's set, TimeSpanParse.cs#L1092/#L1161/#L966/#L840) restricts a
+/// successful parse to the full 5-number "d:h:m:s.f" shape; checked once here up front
+/// (rather than once per `ProcessTerminal_*`, as upstream does) since the two are
+/// behaviorally identical — every shape this rejects would otherwise dispatch to a function
+/// that immediately rejects it anyway.
+fn parse_with_style(
+    s: &str,
+    allow_invariant_day_sep: bool,
+    require_full: bool,
+) -> Result<TimeSpan, TimeSpanError> {
     let trimmed = s.trim();
     if trimmed.is_empty() {
         return Err(TimeSpanError::InvalidFormat);
@@ -199,12 +251,16 @@ pub(crate) fn parse(s: &str) -> Result<TimeSpan, TimeSpanError> {
         add_sep(&mut seps, &mut token_count, String::new())?;
     }
 
+    if require_full && numbers.len() != 5 {
+        return Err(TimeSpanError::InvalidFormat);
+    }
+
     match numbers.len() {
         1 => process_d(&numbers, &seps),
         2 => process_hm(&numbers, &seps),
-        3 => process_hm_s_d(&numbers, &seps),
-        4 => process_hms_f_d(&numbers, &seps),
-        5 => process_dhmsf(&numbers, &seps),
+        3 => process_hm_s_d(&numbers, &seps, allow_invariant_day_sep),
+        4 => process_hms_f_d(&numbers, &seps, allow_invariant_day_sep),
+        5 => process_dhmsf(&numbers, &seps, allow_invariant_day_sep),
         _ => Err(TimeSpanError::InvalidFormat),
     }
 }
@@ -305,7 +361,11 @@ fn process_ambiguous(
 }
 
 /// Cf. ProcessTerminal_HM_S_D (TimeSpanParse.cs#L963-1087): "h:m:s", "d.h:m", or "h:m:.f".
-fn process_hm_s_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
+fn process_hm_s_d(
+    n: &[NumTok],
+    s: &[String],
+    allow_invariant_day_sep: bool,
+) -> Result<TimeSpan, TimeSpanError> {
     let (s0, s1, s2, s3) = (s[0].as_str(), s[1].as_str(), s[2].as_str(), s[3].as_str());
     let zero = NumTok::ZERO;
     let candidates = [
@@ -321,7 +381,10 @@ fn process_hm_s_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError>
         ),
         // DHM: d(.|:)h:m
         (
-            s0 == POS_START && is_day_hour_sep(s1) && s2 == HOUR_MINUTE_SEP && s3 == END,
+            s0 == POS_START
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
+                && s2 == HOUR_MINUTE_SEP
+                && s3 == END,
             true,
             n[0],
             n[1],
@@ -349,7 +412,10 @@ fn process_hm_s_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError>
             zero,
         ),
         (
-            s0 == NEG_START && is_day_hour_sep(s1) && s2 == HOUR_MINUTE_SEP && s3 == END,
+            s0 == NEG_START
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
+                && s2 == HOUR_MINUTE_SEP
+                && s3 == END,
             false,
             n[0],
             n[1],
@@ -371,7 +437,11 @@ fn process_hm_s_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError>
 }
 
 /// Cf. ProcessTerminal_HMS_F_D (TimeSpanParse.cs#L834-961): "h:m:s.f", "d.h:m:s", or "d.h:m:.f".
-fn process_hms_f_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
+fn process_hms_f_d(
+    n: &[NumTok],
+    s: &[String],
+    allow_invariant_day_sep: bool,
+) -> Result<TimeSpan, TimeSpanError> {
     let (s0, s1, s2, s3, s4) = (
         s[0].as_str(),
         s[1].as_str(),
@@ -398,7 +468,7 @@ fn process_hms_f_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError
         // DHMS: d(.|:)h:m:s
         (
             s0 == POS_START
-                && is_day_hour_sep(s1)
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
                 && s2 == HOUR_MINUTE_SEP
                 && s3 == MINUTE_SECOND_SEP
                 && s4 == END,
@@ -412,7 +482,7 @@ fn process_hms_f_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError
         // AppCompat: d(.|:)h:m:.f
         (
             s0 == POS_START
-                && is_day_hour_sep(s1)
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
                 && s2 == HOUR_MINUTE_SEP
                 && s3 == APP_COMPAT_LITERAL
                 && s4 == END,
@@ -438,7 +508,7 @@ fn process_hms_f_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError
         ),
         (
             s0 == NEG_START
-                && is_day_hour_sep(s1)
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
                 && s2 == HOUR_MINUTE_SEP
                 && s3 == MINUTE_SECOND_SEP
                 && s4 == END,
@@ -451,7 +521,7 @@ fn process_hms_f_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError
         ),
         (
             s0 == NEG_START
-                && is_day_hour_sep(s1)
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
                 && s2 == HOUR_MINUTE_SEP
                 && s3 == APP_COMPAT_LITERAL
                 && s4 == END,
@@ -467,7 +537,11 @@ fn process_hms_f_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError
 }
 
 /// Cf. ProcessTerminal_DHMSF (TimeSpanParse.cs#L767-831): "d.h:m:s.f".
-fn process_dhmsf(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
+fn process_dhmsf(
+    n: &[NumTok],
+    s: &[String],
+    allow_invariant_day_sep: bool,
+) -> Result<TimeSpan, TimeSpanError> {
     let (s0, s1, s2, s3, s4, s5) = (
         s[0].as_str(),
         s[1].as_str(),
@@ -479,7 +553,7 @@ fn process_dhmsf(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> 
     let candidates = [
         (
             s0 == POS_START
-                && is_day_hour_sep(s1)
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
                 && s2 == HOUR_MINUTE_SEP
                 && s3 == MINUTE_SECOND_SEP
                 && s4 == SECOND_FRACTION_SEP
@@ -493,7 +567,7 @@ fn process_dhmsf(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> 
         ),
         (
             s0 == NEG_START
-                && is_day_hour_sep(s1)
+                && is_day_hour_sep(s1, allow_invariant_day_sep)
                 && s2 == HOUR_MINUTE_SEP
                 && s3 == MINUTE_SECOND_SEP
                 && s4 == SECOND_FRACTION_SEP

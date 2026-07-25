@@ -33,8 +33,8 @@ pub struct TimeSpan {
 /// Only `parse_exact`'s custom-format-string path consults this at all: C#'s single-letter
 /// standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`) ignore `TimeSpanStyles` entirely
 /// (`TimeSpanTests.cs`'s `ParseExact` test only asserts `AssumeNegative` behavior when
-/// `format` isn't one of those five) — moot here anyway, since this crate doesn't implement
-/// those formats in `parse_exact` regardless.
+/// `format` isn't one of those five, and TimeSpanParse.cs#L1237-1241's dispatch never
+/// passes `styles` through to the standard-format algorithms at all).
 ///
 /// Cf. TimeSpanStyles.cs (`System.Globalization.TimeSpanStyles`)
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -753,7 +753,7 @@ impl TimeSpan {
         (value, digits)
     }
 
-    /// Parses `input` against a caller-supplied custom format string, honoring `styles`.
+    /// Parses `input` against a caller-supplied format string, honoring `styles`.
     ///
     /// Mirrors `TimeSpan.ParseExact(string, string, IFormatProvider?, TimeSpanStyles)` /
     /// `TimeSpan.TryParseExact(string, string, IFormatProvider?, TimeSpanStyles, out
@@ -762,25 +762,41 @@ impl TimeSpan {
     /// from_str`'s precedent for `Parse`/`TryParse`) this single method covers both; there's
     /// no separate infallible variant that panics.
     ///
-    /// Only the custom-format-string mini-language is covered here: `h`/`hh`, `m`/`mm`,
-    /// `s`/`ss` (1-or-2-digit / exactly-2-digit), `d` through `dddddddd` (1-to-8-digit /
-    /// exactly-N-digit, up to 8), `f` through `fffffff` (exactly N digits required) and `F`
-    /// through `FFFFFFF` (up to N digits, all optional) repeat patterns, `'...'`/`"..."`
-    /// quoted literals, `\`-escaped literal characters, and a leading `%` marking a single
-    /// custom specifier character. Deferred, and left for follow-up work:
+    /// `format` may be one of C#'s five single-letter standard formats, or a custom format
+    /// string:
     ///
-    /// - C#'s single-letter standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`, which
-    ///   `ParseExact` also accepts) — these use a *different* parsing algorithm entirely
-    ///   (`TryParseTimeSpanConstant`/`TryParseTimeSpan`, not the custom-format tokenizer
-    ///   this method ports), so a 1-character `format` unconditionally returns
-    ///   [`TimeSpanError::InvalidFormat`] here rather than being parsed.
+    /// - `"c"`, `"t"`, `"T"`: the legacy constant format (`[-]d[.]hh:mm[:ss[.fffffff]]`,
+    ///   day segment optional) — all three are the exact same algorithm upstream.
+    /// - `"g"`: the general short format (variable-width hours, day segment omitted when
+    ///   zero) — the same shape [`TimeSpan::to_string_format`]'s `"g"` produces.
+    /// - `"G"`: the general long format (always two-digit hours, day segment always
+    ///   present, fraction always present) — the same shape `to_string_format`'s `"G"`
+    ///   produces; unlike the other four, `"G"` only accepts that one full shape.
+    /// - Any other string: the custom-format-string mini-language — `h`/`hh`, `m`/`mm`,
+    ///   `s`/`ss` (1-or-2-digit / exactly-2-digit), `d` through `dddddddd` (1-to-8-digit /
+    ///   exactly-N-digit, up to 8), `f` through `fffffff` (exactly N digits required) and
+    ///   `F` through `FFFFFFF` (up to N digits, all optional) repeat patterns,
+    ///   `'...'`/`"..."` quoted literals, `\`-escaped literal characters, and a leading `%`
+    ///   marking a single custom specifier character.
+    ///
+    /// `styles` is honored only for the custom-format-string case: C#'s dispatch never
+    /// passes it through to the standard-format algorithms
+    /// (TimeSpanParse.cs#L1237-1241), so `AssumeNegative` has no effect on `"c"`/`"t"`/
+    /// `"T"`/`"g"`/`"G"`.
+    ///
+    /// Deferred, and left for follow-up work:
+    ///
     /// - The multi-format-string-array overload set (`ParseExactMultiple`/
     ///   `TryParseExactMultiple`) — not exposed at all.
     /// - Any `IFormatProvider`/culture handling — this crate has none, anywhere (matching
     ///   `FromStr::from_str`'s invariant-culture-only scope).
     ///
-    /// See `time_span_parse_exact.rs` for the algorithm (ported from `TimeSpanParse.cs`'s
-    /// `TryParseByFormat`).
+    /// See `time_span_parse_exact.rs` for the top-level dispatch and the custom-format-string
+    /// algorithm (ported from `TimeSpanParse.cs`'s `TryParseByFormat`),
+    /// `time_span_parse_constant.rs` for `"c"`/`"t"`/`"T"` (ported from
+    /// `TryParseTimeSpanConstant`/`StringParser`), and `time_span_parse.rs`'s
+    /// `parse_general` for `"g"`/`"G"` (ported from `TryParseTimeSpan` with the `Localized`/
+    /// `RequireFull` styles).
     ///
     /// Cf. TimeSpanParse.cs's `TryParseExactTimeSpan`/`TryParseByFormat`
     /// (TimeSpanParse.cs#L1228-L1416)
@@ -791,6 +807,9 @@ impl TimeSpan {
     /// let ts = TimeSpan::parse_exact("12.23:32:43", r"dd\.h\:m\:s", TimeSpanStyles::None)
     ///     .unwrap();
     /// assert_eq!(ts, TimeSpan::from_dhms(12, 23, 32, 43).unwrap());
+    ///
+    /// let ts = TimeSpan::parse_exact("1.12:24:02", "c", TimeSpanStyles::None).unwrap();
+    /// assert_eq!(ts, TimeSpan::from_dhms(1, 12, 24, 2).unwrap());
     /// ```
     pub fn parse_exact(
         input: &str,

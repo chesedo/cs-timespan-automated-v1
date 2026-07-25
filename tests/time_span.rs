@@ -1028,7 +1028,10 @@ fn parse_exact_standard_g_valid() {
         ("-12", -TimeSpan::from_dhms(12, 0, 0, 0).unwrap()),
         ("12:34", TimeSpan::from_hms(12, 34, 0).unwrap()),
         ("-12:34", -TimeSpan::from_hms(12, 34, 0).unwrap()),
-        ("1:2:.3", TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap()),
+        (
+            "1:2:.3",
+            TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap(),
+        ),
         (
             "-1:2:.3",
             -TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap(),
@@ -1097,11 +1100,24 @@ fn parse_exact_standard_g_long_valid() {
 /// TimeSpanTests.cs#L1225-1229).
 #[test]
 fn parse_exact_standard_ignores_styles() {
-    let expected = TimeSpan::from_hms(12, 24, 2).unwrap();
-    for format in ["c", "t", "T", "g", "G"] {
+    // "G" only accepts the full "d:h:m:s.f" shape, unlike the other four, so it needs its
+    // own representative input rather than sharing "12:24:02" with the rest.
+    let cases: [(&str, &str, TimeSpan); 5] = [
+        ("12:24:02", "c", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "t", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "T", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "g", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        (
+            "1:12:24:02.243",
+            "G",
+            TimeSpan::from_dhms_milli(1, 12, 24, 2, 243).unwrap(),
+        ),
+    ];
+
+    for (input, format, expected) in cases {
         assert_eq!(
             Ok(expected),
-            TimeSpan::parse_exact("12:24:02", format, TimeSpanStyles::AssumeNegative),
+            TimeSpan::parse_exact(input, format, TimeSpanStyles::AssumeNegative),
             "format {format:?} should ignore AssumeNegative"
         );
     }

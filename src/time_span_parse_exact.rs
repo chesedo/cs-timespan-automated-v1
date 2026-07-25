@@ -1,24 +1,28 @@
-//! Custom-format-string `TimeSpan::parse_exact` (mirrors C#'s
-//! `ParseExact(string, string, IFormatProvider?, TimeSpanStyles)`/`TryParseExact`, single
-//! format-string overload, custom-format-string half only).
+//! `TimeSpan::parse_exact` (mirrors C#'s `ParseExact(string, string, IFormatProvider?,
+//! TimeSpanStyles)`/`TryParseExact`, single format-string overload).
 //!
-//! Ports `TimeSpanParse.cs`'s `TryParseByFormat` and its helpers (`ParseExactDigits`,
-//! `ParseExactLiteral`), plus the pieces of `DateTimeFormat.cs`/`DateTimeParse.cs` it calls
-//! into (`ParseRepeatPattern`, `ParseNextChar`, `TryParseQuoteString`) — these are shared
-//! with `DateTime`'s custom-format parser upstream, so they don't have a `TimeSpan`-specific
-//! home in C# either.
+//! `TimeSpan::parse_exact`'s top-level dispatch lives here: a 1-character `format` routes to
+//! one of the single-letter standard formats (`"c"`/`"t"`/`"T"` via
+//! `time_span_parse_constant::parse_constant`, `"g"`/`"G"` via
+//! `time_span_parse::parse_general`); anything longer goes through this module's own
+//! custom-format-string mini-language, ported from `TimeSpanParse.cs`'s `TryParseByFormat`
+//! and its helpers (`ParseExactDigits`, `ParseExactLiteral`), plus the pieces of
+//! `DateTimeFormat.cs`/`DateTimeParse.cs` it calls into (`ParseRepeatPattern`,
+//! `ParseNextChar`, `TryParseQuoteString`) — these are shared with `DateTime`'s
+//! custom-format parser upstream, so they don't have a `TimeSpan`-specific home in C#
+//! either.
 //!
-//! This is a genuinely different algorithm from `time_span_parse.rs`'s standard-format
-//! path: it walks the *format* string character-by-character (via `TimeSpanTokenizer`'s
-//! char-level `NextChar`/`BackOne`, not its token-level `GetNextToken`), matching each
-//! format specifier against the input directly, rather than tokenizing the input up front
-//! and pattern-matching the resulting shape. The two paths do share `TryTimeToTicks`
-//! (`time_span_parse::time_to_ticks`) for the final bounds-checked tick computation.
+//! The custom-format-string path is a genuinely different algorithm from
+//! `time_span_parse.rs`'s standard-format path: it walks the *format* string
+//! character-by-character (via `TimeSpanTokenizer`'s char-level `NextChar`/`BackOne`, not
+//! its token-level `GetNextToken`), matching each format specifier against the input
+//! directly, rather than tokenizing the input up front and pattern-matching the resulting
+//! shape. The two paths do share `TryTimeToTicks` (`time_span_parse::time_to_ticks`) for the
+//! final bounds-checked tick computation.
 //!
-//! Deferred (see `TimeSpan::parse_exact`'s doc comment for the full list): the single-letter
-//! standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`), the multi-format-string-array overload
-//! set (`ParseExactMultiple`/`TryParseExactMultiple`), and all `IFormatProvider`/culture
-//! handling.
+//! Deferred (see `TimeSpan::parse_exact`'s doc comment for the full list): the
+//! multi-format-string-array overload set (`ParseExactMultiple`/`TryParseExactMultiple`) and
+//! all `IFormatProvider`/culture handling.
 
 use crate::time_span::TimeSpanStyles;
 use crate::time_span_parse::{NumTok, time_to_ticks};
@@ -193,10 +197,20 @@ pub(crate) fn parse_exact(
     // Cf. TryParseExactTimeSpan (TimeSpanParse.cs#L1228-1247): `format.Length == 0` is
     // always a bad-format failure; `format.Length == 1` dispatches to the single-letter
     // standard formats ('c'/'t'/'T'/'g'/'G', each parsed by a *different* algorithm than
-    // the custom-format tokenizer below), which this narrow slice doesn't implement — see
-    // `TimeSpan::parse_exact`'s doc comment.
-    if format_chars.len() <= 1 {
+    // the custom-format tokenizer below — see `time_span_parse_constant.rs` for 'c'/'t'/'T'
+    // and `time_span_parse::parse_general` for 'g'/'G'). `styles` is never consulted for any
+    // of the five: TimeSpanParse.cs#L1237-1241's `switch` arms don't pass it through to
+    // `TryParseTimeSpanConstant`/`TryParseTimeSpan` at all.
+    if format_chars.is_empty() {
         return Err(TimeSpanError::InvalidFormat);
+    }
+    if format_chars.len() == 1 {
+        return match format_chars[0] {
+            'c' | 't' | 'T' => crate::time_span_parse_constant::parse_constant(input),
+            'g' => crate::time_span_parse::parse_general(input, false),
+            'G' => crate::time_span_parse::parse_general(input, true),
+            _ => Err(TimeSpanError::InvalidFormat),
+        };
     }
 
     let mut tokenizer = CharTokenizer::new(input);
