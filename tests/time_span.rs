@@ -1628,6 +1628,86 @@ fn to_string_format_invalid() {
     );
 }
 
+/// The non-allocating counterpart to `to_string_format`: writes UTF-8 bytes directly
+/// into a caller-provided buffer instead of allocating a `String`. Mirrors C#'s
+/// `TryFormat(Span<char>, out int charsWritten, ...)`/`TryFormat(Span<byte>, out int
+/// bytesWritten, ...)` buffer-sizing behavior — a buffer exactly one byte too short
+/// reports [`TimeSpanError::InsufficientBuffer`] and writes nothing, a buffer exactly
+/// long enough succeeds and is filled completely, and a buffer one byte larger than
+/// needed succeeds while leaving the trailing byte untouched.
+///
+/// Cf. TimeSpanTests.cs#L1843-L1888 (`TryFormat_Valid`, `ToString_TestData` rows)
+#[test]
+fn try_format_valid() {
+    let cases: &[(TimeSpan, &str, &str)] = &[
+        (TimeSpan::from_hms(1, 2, 3).unwrap(), "c", "01:02:03"),
+        (TimeSpan::ZERO, "c", "00:00:00"),
+        (
+            TimeSpan::from_ticks(123_456_789_101_112),
+            "c",
+            "142.21:21:18.9101112",
+        ),
+        (TimeSpan::MIN, "c", "-10675199.02:48:05.4775808"),
+        (TimeSpan::from_hms(1, 2, 3).unwrap(), "g", "1:02:03"),
+        (TimeSpan::ZERO, "g", "0:00:00"),
+        (TimeSpan::MIN, "g", "-10675199:2:48:05.4775808"),
+        (
+            TimeSpan::from_hms(1, 2, 3).unwrap(),
+            "G",
+            "0:01:02:03.0000000",
+        ),
+        (TimeSpan::ZERO, "G", "0:00:00:00.0000000"),
+        (TimeSpan::MIN, "G", "-10675199:02:48:05.4775808"),
+    ];
+
+    for (input, format, expected) in cases {
+        let expected_len = expected.len();
+
+        // One byte too short: fails, and nothing is written.
+        let mut too_small = vec![0u8; expected_len - 1];
+        assert_eq!(
+            Err(TimeSpanError::InsufficientBuffer),
+            input.try_format(&mut too_small, format)
+        );
+
+        // Exactly long enough: succeeds, buffer filled exactly.
+        let mut exact = vec![0u8; expected_len];
+        let written = input.try_format(&mut exact, format).unwrap();
+        assert_eq!(expected_len, written);
+        assert_eq!(*expected, std::str::from_utf8(&exact).unwrap());
+
+        // One byte larger than needed: succeeds, trailing byte left untouched.
+        let mut larger = vec![0u8; expected_len + 1];
+        let written = input.try_format(&mut larger, format).unwrap();
+        assert_eq!(expected_len, written);
+        assert_eq!(*expected, std::str::from_utf8(&larger[..written]).unwrap());
+        assert_eq!(0, larger[larger.len() - 1]);
+    }
+}
+
+/// Mirrors `to_string_format_invalid`, but through `try_format`: an invalid format
+/// string reports [`TimeSpanError::InvalidFormat`] regardless of buffer size, checked
+/// before any buffer-length validation (matching C#, where `FormatException` is thrown
+/// even when passed a 1-element destination span).
+///
+/// Cf. TimeSpanTests.cs#L1890-L1896 (`TryFormat_InvalidFormat_ThrowsFormatException`)
+#[test]
+fn try_format_invalid_format() {
+    for format in ["y", "F", "C", "cc"] {
+        let mut buf = [0u8; 1];
+        assert_eq!(
+            Err(TimeSpanError::InvalidFormat),
+            TimeSpan::ZERO.try_format(&mut buf, format)
+        );
+    }
+
+    let mut buf = [0u8; 1];
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::from_ticks(123_456_789_101_112).try_format(&mut buf, "dd\\.ss")
+    );
+}
+
 /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L770-L788 (`FromDays_TestData`, `FromDays`)
 #[test]
 fn from_days_basic() {
