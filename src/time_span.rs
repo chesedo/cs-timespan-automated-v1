@@ -19,6 +19,36 @@ pub struct TimeSpan {
     ticks: i64,
 }
 
+/// Controls how [`TimeSpan::parse_exact`]'s custom-format-string path interprets a parsed
+/// value's sign.
+///
+/// C#'s `[Flags] enum TimeSpanStyles { None = 0, AssumeNegative = 1 }` is a bitflag type,
+/// but with only one real flag it never combines with anything — represented here as an
+/// ordinary 2-variant enum instead. An out-of-range value (C#'s `TimeSpanStyles.None - 1` /
+/// `TimeSpanStyles.AssumeNegative + 1`, which `ParseExact` rejects with `ArgumentException`)
+/// is simply unrepresentable in Rust's type system, so that validation has no Rust
+/// equivalent to port — see [`crate::TimeSpanError`]'s doc comment, which already notes
+/// this.
+///
+/// Only `parse_exact`'s custom-format-string path consults this at all: C#'s single-letter
+/// standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`) ignore `TimeSpanStyles` entirely
+/// (`TimeSpanTests.cs`'s `ParseExact` test only asserts `AssumeNegative` behavior when
+/// `format` isn't one of those five) — moot here anyway, since this crate doesn't implement
+/// those formats in `parse_exact` regardless.
+///
+/// Cf. TimeSpanStyles.cs (`System.Globalization.TimeSpanStyles`)
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum TimeSpanStyles {
+    /// Cf. TimeSpanStyles.cs's `None`.
+    #[default]
+    None,
+    /// A leading `-` is not expected in the input; instead, the parsed magnitude is negated
+    /// unconditionally.
+    ///
+    /// Cf. TimeSpanStyles.cs's `AssumeNegative`.
+    AssumeNegative,
+}
+
 impl TimeSpan {
     // Cf. TimeSpan.cs#L37-L205
     pub const NANOSECONDS_PER_TICK: i64 = 100;
@@ -702,6 +732,53 @@ impl TimeSpan {
         }
         (value, digits)
     }
+
+    /// Parses `input` against a caller-supplied custom format string, honoring `styles`.
+    ///
+    /// Mirrors `TimeSpan.ParseExact(string, string, IFormatProvider?, TimeSpanStyles)` /
+    /// `TimeSpan.TryParseExact(string, string, IFormatProvider?, TimeSpanStyles, out
+    /// TimeSpan)` — Rust's `Result` already distinguishes success from failure the way
+    /// those `Try`-prefixed bool-return/`out`-param pairs do, so (matching `FromStr::
+    /// from_str`'s precedent for `Parse`/`TryParse`) this single method covers both; there's
+    /// no separate infallible variant that panics.
+    ///
+    /// Only the custom-format-string mini-language is covered here: `h`/`hh`, `m`/`mm`,
+    /// `s`/`ss` (1-or-2-digit / exactly-2-digit), `d` through `dddddddd` (1-to-8-digit /
+    /// exactly-N-digit, up to 8), `f` through `fffffff` (exactly N digits required) and `F`
+    /// through `FFFFFFF` (up to N digits, all optional) repeat patterns, `'...'`/`"..."`
+    /// quoted literals, `\`-escaped literal characters, and a leading `%` marking a single
+    /// custom specifier character. Deferred, and left for follow-up work:
+    ///
+    /// - C#'s single-letter standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`, which
+    ///   `ParseExact` also accepts) — these use a *different* parsing algorithm entirely
+    ///   (`TryParseTimeSpanConstant`/`TryParseTimeSpan`, not the custom-format tokenizer
+    ///   this method ports), so a 1-character `format` unconditionally returns
+    ///   [`TimeSpanError::InvalidFormat`] here rather than being parsed.
+    /// - The multi-format-string-array overload set (`ParseExactMultiple`/
+    ///   `TryParseExactMultiple`) — not exposed at all.
+    /// - Any `IFormatProvider`/culture handling — this crate has none, anywhere (matching
+    ///   `FromStr::from_str`'s invariant-culture-only scope).
+    ///
+    /// See `time_span_parse_exact.rs` for the algorithm (ported from `TimeSpanParse.cs`'s
+    /// `TryParseByFormat`).
+    ///
+    /// Cf. TimeSpanParse.cs's `TryParseExactTimeSpan`/`TryParseByFormat`
+    /// (TimeSpanParse.cs#L1228-L1416)
+    ///
+    /// ```
+    /// use cs_timespan_automated_v1::{TimeSpan, TimeSpanStyles};
+    ///
+    /// let ts = TimeSpan::parse_exact("12.23:32:43", r"dd\.h\:m\:s", TimeSpanStyles::None)
+    ///     .unwrap();
+    /// assert_eq!(ts, TimeSpan::from_dhms(12, 23, 32, 43).unwrap());
+    /// ```
+    pub fn parse_exact(
+        input: &str,
+        format: &str,
+        styles: TimeSpanStyles,
+    ) -> Result<Self, TimeSpanError> {
+        todo!()
+    }
 }
 
 /// Built on [`TimeSpan::checked_neg`]. Rust's `Neg` trait can't return a `Result`,
@@ -782,13 +859,13 @@ impl std::ops::Div<TimeSpan> for TimeSpan {
 /// Invariant-culture parsing only, mirroring `Parse(string)`/`TryParse`. See
 /// `time_span_parse.rs` for the algorithm (ported from `TimeSpanParse.cs`).
 ///
-/// C#'s `IFormatProvider`-aware overloads and the custom-format-string
-/// `ParseExact`/`TryParseExact`/`TryFormat` family remain deferred: their shape depends
-/// on more of `TimeSpanParse.cs`/`TimeSpanFormat.cs` than the invariant standard-format
-/// grammar this impl covers, so this doesn't guess at a Rust equivalent for
-/// custom-format-string/culture handling. (`ToString(string? format)`'s standard `"g"`/
-/// `"G"` formats are covered by [`TimeSpan::to_string_format`]; its custom-format-string
-/// branch is not.)
+/// C#'s `IFormatProvider`-aware overloads (`Parse(string, IFormatProvider?)`,
+/// `TryParse(..., IFormatProvider?, ...)`) and `TryFormat` remain deferred — this crate
+/// has no culture/locale support anywhere. `ToString(string? format)`'s standard `"g"`/
+/// `"G"` formats are covered by [`TimeSpan::to_string_format`]. The custom-format-string
+/// `ParseExact`/`TryParseExact` family is now covered (single format-string overload
+/// only) by [`TimeSpan::parse_exact`]; see its doc comment for what's still deferred
+/// there.
 ///
 /// Cf. TimeSpan.cs#L722-L727
 ///

@@ -4,7 +4,7 @@
 //! test coverage-parity rule; the rest lands via the drift-scan/work-issue loop as
 //! more of the C# surface gets real implementations.
 
-use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
+use cs_timespan_automated_v1::{TimeSpan, TimeSpanError, TimeSpanStyles};
 
 /// Mirrors the C# test helper `VerifyTimeSpan(TimeSpan, int, int, int, int, int)`
 /// (TimeSpanTests.cs#L1686-L1695), minus its `Assert.Equal(timeSpan, +timeSpan)`
@@ -822,6 +822,183 @@ fn parse_different_length_fraction_with_leading_zeros() {
             Ok(TimeSpan::from_ticks(expected_ticks)),
             input.parse::<TimeSpan>(),
             "parsing {input:?}"
+        );
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1162-L1206 (`ParseExact_Valid_TestData`), restricted to the
+/// "Custom timespan formats" rows (TimeSpanTests.cs#L1191-L1205) — the standard
+/// single-letter-format rows ("c"/"t"/"T"/"g"/"G", TimeSpanTests.cs#L1164-L1189) are out of
+/// scope for `TimeSpan::parse_exact`'s narrow custom-format-string-only slice; see its doc
+/// comment.
+#[test]
+fn parse_exact_valid() {
+    let cases: [(&str, &str, TimeSpan); 14] = [
+        (
+            "12.23:32:43",
+            r"dd\.h\:m\:s",
+            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+        ),
+        (
+            "012.23:32:43.893",
+            r"ddd\.h\:m\:s\.fff",
+            TimeSpan::from_dhms_milli(12, 23, 32, 43, 893).unwrap(),
+        ),
+        (
+            "12.05:02:03",
+            r"d\.hh\:mm\:ss",
+            TimeSpan::from_dhms(12, 5, 2, 3).unwrap(),
+        ),
+        (
+            "12:34 minutes",
+            r"mm\:ss\ \m\i\n\u\t\e\s",
+            TimeSpan::from_hms(0, 12, 34).unwrap(),
+        ),
+        (
+            "12:34 minutes",
+            r#"mm\:ss\ "minutes""#,
+            TimeSpan::from_hms(0, 12, 34).unwrap(),
+        ),
+        (
+            "12:34 minutes",
+            r"mm\:ss\ 'minutes'",
+            TimeSpan::from_hms(0, 12, 34).unwrap(),
+        ),
+        (
+            "678",
+            "fff",
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
+        ),
+        (
+            "678",
+            "FFF",
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
+        ),
+        ("3", "%d", TimeSpan::from_dhms(3, 0, 0, 0).unwrap()),
+        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
+        ("3", "%m", TimeSpan::from_hms(0, 3, 0).unwrap()),
+        ("3", "%s", TimeSpan::from_hms(0, 0, 3).unwrap()),
+        (
+            "3",
+            "%f",
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 300).unwrap(),
+        ),
+        (
+            "3",
+            "%F",
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 300).unwrap(),
+        ),
+    ];
+
+    for (input, format, expected) in cases {
+        assert_eq!(
+            Ok(expected),
+            TimeSpan::parse_exact(input, format, TimeSpanStyles::None),
+            "parsing {input:?} against format {format:?}"
+        );
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1230-L1241 (`ParseExact`'s `TimeSpanStyles.AssumeNegative`
+/// assertion — gated there on `format` not being one of the five standard single-letter
+/// formats, so only exercised here against a sample of the custom-format rows from
+/// `parse_exact_valid` above).
+#[test]
+fn parse_exact_assume_negative() {
+    let cases: [(&str, &str, TimeSpan); 3] = [
+        (
+            "12.23:32:43",
+            r"dd\.h\:m\:s",
+            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+        ),
+        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
+        (
+            "678",
+            "fff",
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
+        ),
+    ];
+
+    for (input, format, expected) in cases {
+        assert_eq!(
+            Ok(-expected),
+            TimeSpan::parse_exact(input, format, TimeSpanStyles::AssumeNegative),
+            "parsing {input:?} against format {format:?} with AssumeNegative"
+        );
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1252-L1304 (`ParseExact_Invalid_TestData`), restricted to rows
+/// usable without a `null` `string`/`string[]` (no `&str` equivalent) and to the
+/// format-agnostic `""`/`"garbage"`-style rows plus the "Custom timespan formats" section
+/// (TimeSpanTests.cs#L1275-L1303) — the standard single-letter-format rows
+/// (TimeSpanTests.cs#L1261-L1274, `"c"`/`"g"`/`"G"`) are out of scope for
+/// `TimeSpan::parse_exact`'s narrow custom-format-string-only slice: a 1-character `format`
+/// unconditionally returns `InvalidFormat` here regardless of what the real C# algorithm
+/// for that particular standard format would have done with the input, so those rows would
+/// only coincidentally match (or not) rather than actually exercise this port's algorithm.
+#[test]
+fn parse_exact_invalid() {
+    let cases: [(&str, &str, TimeSpanError); 28] = [
+        ("00:00:00", "", TimeSpanError::InvalidFormat),
+        ("12.5:2", "V", TimeSpanError::InvalidFormat),
+        (
+            "12.35:32:43",
+            r"dd\.h\:m\:s",
+            TimeSpanError::Overflow,
+        ),
+        (
+            "12.5:2:3",
+            r"d\.hh\:mm\:ss",
+            TimeSpanError::InvalidFormat,
+        ),
+        ("12.5:2", r"d\.hh\:mm\:ss", TimeSpanError::InvalidFormat),
+        ("678", "ffff", TimeSpanError::InvalidFormat),
+        ("00000012", "FFFFFFFF", TimeSpanError::InvalidFormat),
+        ("12:034:56", r"hh\mm\ss", TimeSpanError::InvalidFormat),
+        ("12:34:056", r"hh\mm\ss", TimeSpanError::InvalidFormat),
+        (
+            "12:34 minutes",
+            r#"mm\:ss\ "minutes"#,
+            TimeSpanError::InvalidFormat,
+        ),
+        (
+            "12:34 minutes",
+            r"mm\:ss\ 'minutes",
+            TimeSpanError::InvalidFormat,
+        ),
+        (
+            "12:34 mints",
+            r#"mm\:ss\ "minutes""#,
+            TimeSpanError::InvalidFormat,
+        ),
+        (
+            "12:34 mints",
+            r"mm\:ss\ 'minutes'",
+            TimeSpanError::InvalidFormat,
+        ),
+        ("1", "d%", TimeSpanError::InvalidFormat),
+        ("1", "%%d", TimeSpanError::InvalidFormat),
+        ("12:34:56", r"hhh\:mm\:ss", TimeSpanError::InvalidFormat),
+        ("12:34:56", r"hh\:hh\:ss", TimeSpanError::InvalidFormat),
+        ("123:34:56", r"hh\:mm\:ss", TimeSpanError::InvalidFormat),
+        ("12:34:56", r"hh\:mmm\:ss", TimeSpanError::InvalidFormat),
+        ("12:34:56", r"hh\:mm\:mm", TimeSpanError::InvalidFormat),
+        ("12:345:56", r"hh\:mm\:ss", TimeSpanError::InvalidFormat),
+        ("12:34:56", r"hh\:mm\:sss", TimeSpanError::InvalidFormat),
+        ("12:34:56", r"hh\:ss\:ss", TimeSpanError::InvalidFormat),
+        ("12:45", "ff:ff", TimeSpanError::InvalidFormat),
+        ("000000123", "ddddddddd", TimeSpanError::InvalidFormat),
+        ("12:34:56", "dd:dd:hh", TimeSpanError::InvalidFormat),
+        ("123:45", "dd:hh", TimeSpanError::InvalidFormat),
+        ("12:34", "dd:vv", TimeSpanError::InvalidFormat),
+    ];
+
+    for (input, format, expected_err) in cases {
+        assert_eq!(
+            Err(expected_err),
+            TimeSpan::parse_exact(input, format, TimeSpanStyles::None),
+            "parsing {input:?} against format {format:?}"
         );
     }
 }
