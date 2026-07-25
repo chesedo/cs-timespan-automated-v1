@@ -914,14 +914,8 @@ fn divide_time_span_operator_basic() {
 /// Cf. TimeSpan.cs#L936-L941
 #[test]
 fn divide_time_span_operator_by_zero_yields_infinity() {
-    assert_eq!(
-        f64::INFINITY,
-        TimeSpan::from_ticks(1) / TimeSpan::ZERO
-    );
-    assert_eq!(
-        f64::NEG_INFINITY,
-        TimeSpan::from_ticks(-1) / TimeSpan::ZERO
-    );
+    assert_eq!(f64::INFINITY, TimeSpan::from_ticks(1) / TimeSpan::ZERO);
+    assert_eq!(f64::NEG_INFINITY, TimeSpan::from_ticks(-1) / TimeSpan::ZERO);
 }
 
 /// `TimeSpan.Zero / TimeSpan.Zero` is defined to yield `NaN` per the same
@@ -940,7 +934,10 @@ fn divide_time_span_operator_zero_by_zero_yields_nan() {
 /// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
 #[test]
 fn divide_time_span_method_matches_operator() {
-    assert_eq!(2.0, TimeSpan::from_ticks(10).divide_time_span(TimeSpan::from_ticks(5)));
+    assert_eq!(
+        2.0,
+        TimeSpan::from_ticks(10).divide_time_span(TimeSpan::from_ticks(5))
+    );
     assert_eq!(
         f64::INFINITY,
         TimeSpan::from_ticks(1).divide_time_span(TimeSpan::ZERO)
