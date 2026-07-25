@@ -5,9 +5,16 @@
   "rust_files": [
     "src/lib.rs",
     "src/error.rs",
-    "src/time_span.rs"
+    "src/time_span.rs",
+    "src/time_span_parse.rs",
+    "src/time_span_parse_exact.rs",
+    "src/time_span_parse_constant.rs",
+    "src/time_span_format_custom.rs"
   ],
   "csharp_sources": {
-    "TimeSpan.cs": "src/libraries/System.Private.CoreLib/src/System/TimeSpan.cs"
+    "TimeSpan.cs": "src/libraries/System.Private.CoreLib/src/System/TimeSpan.cs",
+    "TimeSpanParse.cs": "src/libraries/System.Private.CoreLib/src/System/Globalization/TimeSpanParse.cs",
+    "TimeSpanFormat.cs": "src/libraries/System.Private.CoreLib/src/System/Globalization/TimeSpanFormat.cs",
+    "TimeSpanStyles.cs": "src/libraries/System.Private.CoreLib/src/System/Globalization/TimeSpanStyles.cs"
   }
 }
