@@ -474,18 +474,44 @@ impl TimeSpan {
         )
     }
 
+    /// Bounds-checks a microsecond count already widened to `i128` and converts it
+    /// to ticks. Mirrors C#'s private `FromMicroseconds(Int128)` helper, shared by
+    /// all five multi-component `_parts` factories below (each of which widens its
+    /// own component sum to `i128` first, mirroring `Math.BigMul`/`Int128` in C#,
+    /// so the addition itself can never overflow — same rationale as
+    /// [`Self::dhms_to_ticks`]/[`Self::time_to_ticks`]).
+    ///
+    /// Cf. TimeSpan.cs#L613-L620 (private `FromMicroseconds(Int128)`)
+    fn from_microseconds_i128(total_microseconds: i128) -> Result<Self, TimeSpanError> {
+        if total_microseconds > Self::MAX_MICROSECONDS as i128
+            || total_microseconds < Self::MIN_MICROSECONDS as i128
+        {
+            return Err(TimeSpanError::Overflow);
+        }
+        Ok(TimeSpan {
+            ticks: total_microseconds as i64 * Self::TICKS_PER_MICROSECOND,
+        })
+    }
+
     /// Cf. TimeSpan.cs#L471-L481. The C# overload takes optional trailing
     /// parameters (`hours = 0, minutes = 0, ...`); Rust has no default arguments,
     /// so all components are required here.
     pub fn from_days_parts(
-        _days: i32,
-        _hours: i32,
-        _minutes: i64,
-        _seconds: i64,
-        _milliseconds: i64,
-        _microseconds: i64,
+        days: i32,
+        hours: i32,
+        minutes: i64,
+        seconds: i64,
+        milliseconds: i64,
+        microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        let total_microseconds = (days as i128) * (Self::MICROSECONDS_PER_DAY as i128)
+            + (hours as i128) * (Self::MICROSECONDS_PER_HOUR as i128)
+            + (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
+            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
+            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
+            + microseconds as i128;
+
+        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// Cf. TimeSpan.cs#L492, TimeSpan.cs#L634
@@ -510,13 +536,19 @@ impl TimeSpan {
 
     /// Cf. TimeSpan.cs#L507-L516
     pub fn from_hours_parts(
-        _hours: i32,
-        _minutes: i64,
-        _seconds: i64,
-        _milliseconds: i64,
-        _microseconds: i64,
+        hours: i32,
+        minutes: i64,
+        seconds: i64,
+        milliseconds: i64,
+        microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        let total_microseconds = (hours as i128) * (Self::MICROSECONDS_PER_HOUR as i128)
+            + (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
+            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
+            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
+            + microseconds as i128;
+
+        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// Cf. TimeSpan.cs#L527, TimeSpan.cs#L681
@@ -542,12 +574,17 @@ impl TimeSpan {
 
     /// Cf. TimeSpan.cs#L541-L549
     pub fn from_minutes_parts(
-        _minutes: i64,
-        _seconds: i64,
-        _milliseconds: i64,
-        _microseconds: i64,
+        minutes: i64,
+        seconds: i64,
+        milliseconds: i64,
+        microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        let total_microseconds = (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
+            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
+            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
+            + microseconds as i128;
+
+        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// Cf. TimeSpan.cs#L560, TimeSpan.cs#L685
@@ -573,11 +610,15 @@ impl TimeSpan {
 
     /// Cf. TimeSpan.cs#L573-L580
     pub fn from_seconds_parts(
-        _seconds: i64,
-        _milliseconds: i64,
-        _microseconds: i64,
+        seconds: i64,
+        milliseconds: i64,
+        microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        let total_microseconds = (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
+            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
+            + microseconds as i128;
+
+        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// Cf. TimeSpan.cs#L591-L592, TimeSpan.cs#L658
@@ -603,10 +644,14 @@ impl TimeSpan {
 
     /// Cf. TimeSpan.cs#L604-L610
     pub fn from_milliseconds_parts(
-        _milliseconds: i64,
-        _microseconds: i64,
+        milliseconds: i64,
+        microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        let total_microseconds = (milliseconds as i128)
+            * (Self::MICROSECONDS_PER_MILLISECOND as i128)
+            + microseconds as i128;
+
+        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// Cf. TimeSpan.cs#L632, TimeSpan.cs#L679

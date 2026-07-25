@@ -2500,3 +2500,353 @@ fn from_microseconds_max_ticks_boundary() {
     let value = i64::MAX as f64 / TimeSpan::TICKS_PER_MICROSECOND as f64;
     assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_microseconds(value));
 }
+
+// --- Multi-component `_parts` factories: `FromDays`/`FromHours`/`FromMinutes`/
+// `FromSeconds`/`FromMilliseconds`'s overloads with optional trailing parameters,
+// all delegating to the private `FromMicroseconds(Int128)` helper in C#. ---
+
+/// Cf. TimeSpan.cs#L471-L481 (`FromDays` 6-arg overload), TimeSpanTests.cs#L353-372
+/// (`FromDays_Int_Positive`/`FromDays_Int_Negative`/`FromDays_Int_Zero`)
+#[test]
+fn from_days_parts_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_dhms_micro(1, 2, 3, 4, 5, 6).unwrap()),
+        TimeSpan::from_days_parts(1, 2, 3, 4, 5, 6)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_dhms_micro(-1, -2, -3, -4, -5, -6).unwrap()),
+        TimeSpan::from_days_parts(-1, -2, -3, -4, -5, -6)
+    );
+    assert_eq!(
+        Ok(TimeSpan::ZERO),
+        TimeSpan::from_days_parts(0, 0, 0, 0, 0, 0)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY)),
+        TimeSpan::from_days_parts(1, 0, 0, 0, 0, 0)
+    );
+}
+
+/// Two individually overflowing components with opposite sign should cancel out to
+/// a result close to zero rather than erroring, verifying the sum is widened to a
+/// wide-enough integer type before the range check — matching C#'s `Int128`-
+/// accumulated `totalMicroseconds` (`Math.BigMul` per term).
+///
+/// Cf. TimeSpanTests.cs#L455-476
+/// (`FromDays_Int_ShouldNotOverflow_WhenOverflowingParamIsCounteredByOppositeSignParam`)
+#[test]
+fn from_days_parts_opposite_sign_cancels_overflow() {
+    const MAX_DAYS: i32 = 10_675_199;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    let result =
+        TimeSpan::from_days_parts(MAX_DAYS + 1, 0, 0, 0, 0, -(MAX_MICROSECONDS + 1)).unwrap();
+    assert!(result > TimeSpan::from_days(-1.0).unwrap());
+    assert!(result < TimeSpan::from_days(1.0).unwrap());
+}
+
+/// Cf. TimeSpanTests.cs#L484-511 (`FromDays_Int_ShouldOverflow`)
+#[test]
+fn from_days_parts_overflow() {
+    const MAX_DAYS: i32 = 10_675_199;
+    const MAX_HOURS: i32 = 256_204_778;
+    const MAX_MINUTES: i64 = 15_372_286_728;
+    const MAX_SECONDS: i64 = 922_337_203_685;
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(MAX_DAYS + 1, 0, 0, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(-(MAX_DAYS + 1), 0, 0, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(0, MAX_HOURS + 1, 0, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(0, 0, MAX_MINUTES + 1, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(0, 0, 0, MAX_SECONDS + 1, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(0, 0, 0, 0, MAX_MILLISECONDS + 1, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(0, 0, 0, 0, 0, MAX_MICROSECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(i32::MAX, i32::MAX, i64::MAX, i64::MAX, i64::MAX, i64::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_parts(i32::MIN, i32::MIN, i64::MIN, i64::MIN, i64::MIN, i64::MIN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L507-L516 (`FromHours` 5-arg overload), TimeSpanTests.cs#L561-568
+/// (`FromHours_Int_ShouldCreate`)
+#[test]
+fn from_hours_parts_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            TimeSpan::TICKS_PER_HOUR
+                + TimeSpan::TICKS_PER_MINUTE
+                + TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND
+        )),
+        TimeSpan::from_hours_parts(1, 1, 1, 1, 1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_HOUR
+                + TimeSpan::TICKS_PER_MINUTE
+                + TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
+        TimeSpan::from_hours_parts(-1, -1, -1, -1, -1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::ZERO),
+        TimeSpan::from_hours_parts(0, 0, 0, 0, 0)
+    );
+}
+
+/// Cf. TimeSpanTests.cs#L570-591 (`FromHours_Int_ShouldOverflow`)
+#[test]
+fn from_hours_parts_overflow() {
+    const MAX_HOURS: i32 = 256_204_778;
+    const MAX_MINUTES: i64 = 15_372_286_728;
+    const MAX_SECONDS: i64 = 922_337_203_685;
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_parts(MAX_HOURS + 1, 0, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_parts(-(MAX_HOURS + 1), 0, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_parts(0, MAX_MINUTES + 1, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_parts(0, 0, MAX_SECONDS + 1, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_parts(0, 0, 0, MAX_MILLISECONDS + 1, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_parts(0, 0, 0, 0, MAX_MICROSECONDS + 1)
+    );
+}
+
+/// Cf. TimeSpan.cs#L541-L549 (`FromMinutes` 4-arg overload), TimeSpanTests.cs#L619-627
+/// (`FromMinutes_Int_ShouldCreate`)
+#[test]
+fn from_minutes_parts_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            TimeSpan::TICKS_PER_MINUTE
+                + TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND
+        )),
+        TimeSpan::from_minutes_parts(1, 1, 1, 1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_MINUTE
+                + TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
+        TimeSpan::from_minutes_parts(-1, -1, -1, -1)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_minutes_parts(0, 0, 0, 0));
+}
+
+/// Cf. TimeSpanTests.cs#L629-637 (`FromMinutes_Int_ShouldOverflow`)
+#[test]
+fn from_minutes_parts_overflow() {
+    const MAX_MINUTES: i64 = 15_372_286_728;
+    const MAX_SECONDS: i64 = 922_337_203_685;
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(MAX_MINUTES + 1, 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(-(MAX_MINUTES + 1), 0, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(0, MAX_SECONDS + 1, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(0, 0, MAX_MILLISECONDS + 1, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(0, 0, 0, MAX_MICROSECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(i64::MAX, i64::MAX, i64::MAX, i64::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_parts(i64::MIN, i64::MIN, i64::MIN, i64::MIN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L573-L580 (`FromSeconds` 3-arg overload), TimeSpanTests.cs#L672-680
+/// (`FromSeconds_Int_ShouldCreate`)
+#[test]
+fn from_seconds_parts_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND
+        )),
+        TimeSpan::from_seconds_parts(1, 1, 1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_SECOND
+                + TimeSpan::TICKS_PER_MILLISECOND
+                + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
+        TimeSpan::from_seconds_parts(-1, -1, -1)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_seconds_parts(0, 0, 0));
+}
+
+/// A naive `f64`-based conversion of `832` milliseconds could lose precision and
+/// produce a slightly different tick count than the exact integer arithmetic C#
+/// uses (`Math.BigMul`-widened `Int128`, never touching `f64`).
+///
+/// Cf. TimeSpanTests.cs#L374-379 (`FromSeconds_Int_ShouldGiveResultWithPrecision`,
+/// citing https://github.com/dotnet/runtime/issues/93890)
+#[test]
+fn from_seconds_parts_precision() {
+    assert_eq!(
+        Ok(TimeSpan::from_dhms_micro(0, 0, 0, 101, 832, 0).unwrap()),
+        TimeSpan::from_seconds_parts(101, 832, 0)
+    );
+}
+
+/// Cf. TimeSpanTests.cs#L682-696 (`FromSeconds_Int_ShouldOverflow`)
+#[test]
+fn from_seconds_parts_overflow() {
+    const MAX_SECONDS: i64 = 922_337_203_685;
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(MAX_SECONDS + 1, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(-(MAX_SECONDS + 1), 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(0, MAX_MILLISECONDS + 1, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(0, 0, MAX_MICROSECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(i64::MAX, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(0, i64::MAX, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_parts(0, 0, i64::MAX)
+    );
+}
+
+/// Cf. TimeSpan.cs#L604-L610 (`FromMilliseconds` 2-arg overload). Also covers what
+/// #52/#54/#55 describe (`from_days_parts`/`from_minutes_parts`/`from_seconds_parts`)
+/// and, like them, follows the same `FromMicroseconds(Int128)`-delegating pattern as
+/// the other `_parts` factories above, so it's fixed alongside them here even though
+/// no issue named it individually.
+///
+/// Cf. TimeSpanTests.cs#L710-724 (`FromMilliseconds_Int_ShouldCreate`)
+#[test]
+fn from_milliseconds_parts_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            TimeSpan::TICKS_PER_MILLISECOND + TimeSpan::TICKS_PER_MICROSECOND
+        )),
+        TimeSpan::from_milliseconds_parts(1, 1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -(TimeSpan::TICKS_PER_MILLISECOND + TimeSpan::TICKS_PER_MICROSECOND)
+        )),
+        TimeSpan::from_milliseconds_parts(-1, -1)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_milliseconds_parts(0, 0));
+}
+
+/// Cf. TimeSpanTests.cs#L727-747 (`FromMilliseconds_Int_ShouldOverflow`)
+#[test]
+fn from_milliseconds_parts_overflow() {
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_parts(MAX_MILLISECONDS + 1, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_parts(-(MAX_MILLISECONDS + 1), 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_parts(0, MAX_MICROSECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_parts(0, -(MAX_MICROSECONDS + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_parts(i64::MAX, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_parts(0, i64::MAX)
+    );
+}
