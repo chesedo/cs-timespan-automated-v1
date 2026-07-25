@@ -945,6 +945,274 @@ fn divide_time_span_method_matches_operator() {
     assert!(TimeSpan::ZERO.divide_time_span(TimeSpan::ZERO).is_nan());
 }
 
+/// The single-argument integer `FromDays`/etc. overloads are bounds-checked against
+/// that unit's whole `Min*`/`Max*` constant via the private `FromUnits` helper —
+/// distinct from both the `f64`/`Interval`-based overload (`TimeSpan::from_days`) and
+/// the multi-component `_parts` constructor (`TimeSpan::from_days_parts`).
+///
+/// Cf. TimeSpan.cs#L455, TimeSpanTests.cs#L507-L516 (`FromDays_Int_Single_ShouldCreate`)
+#[test]
+fn from_days_i32_basic() {
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_days_i32(0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY)),
+        TimeSpan::from_days_i32(1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_DAY)),
+        TimeSpan::from_days_i32(-1)
+    );
+
+    const MAX_DAYS: i32 = 10_675_199;
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            MAX_DAYS as i64 * TimeSpan::TICKS_PER_DAY
+        )),
+        TimeSpan::from_days_i32(MAX_DAYS)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -MAX_DAYS as i64 * TimeSpan::TICKS_PER_DAY
+        )),
+        TimeSpan::from_days_i32(-MAX_DAYS)
+    );
+}
+
+/// Cf. TimeSpan.cs#L433-L444 (`FromUnits`), TimeSpanTests.cs#L518-L524
+/// (`FromDays_Int_Single_ShouldOverflow`)
+#[test]
+fn from_days_i32_overflow() {
+    const MAX_DAYS: i32 = 10_675_199;
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_i32(MAX_DAYS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_i32(-(MAX_DAYS + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_i32(i32::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days_i32(i32::MIN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L492, TimeSpanTests.cs#L532-L539
+/// (`FromHours_Int_Single_ShouldCreate`)
+#[test]
+fn from_hours_i32_basic() {
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_hours_i32(0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_HOUR)),
+        TimeSpan::from_hours_i32(1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_HOUR)),
+        TimeSpan::from_hours_i32(-1)
+    );
+
+    const MAX_HOURS: i32 = 256_204_778;
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            MAX_HOURS as i64 * TimeSpan::TICKS_PER_HOUR
+        )),
+        TimeSpan::from_hours_i32(MAX_HOURS)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -MAX_HOURS as i64 * TimeSpan::TICKS_PER_HOUR
+        )),
+        TimeSpan::from_hours_i32(-MAX_HOURS)
+    );
+}
+
+/// Cf. TimeSpan.cs#L433-L444 (`FromUnits`), TimeSpanTests.cs#L541-L547
+/// (`FromHours_Int_Single_ShouldOverflow`)
+#[test]
+fn from_hours_i32_overflow() {
+    const MAX_HOURS: i32 = 256_204_778;
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_i32(MAX_HOURS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_i32(-(MAX_HOURS + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_i32(i32::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours_i32(i32::MIN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L527, TimeSpanTests.cs#L591-L598
+/// (`FromMinutes_Int_Single_ShouldCreate`)
+#[test]
+fn from_minutes_i64_basic() {
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_minutes_i64(0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MINUTE)),
+        TimeSpan::from_minutes_i64(1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_MINUTE)),
+        TimeSpan::from_minutes_i64(-1)
+    );
+
+    const MAX_MINUTES: i64 = 15_372_286_728;
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            MAX_MINUTES * TimeSpan::TICKS_PER_MINUTE
+        )),
+        TimeSpan::from_minutes_i64(MAX_MINUTES)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -MAX_MINUTES * TimeSpan::TICKS_PER_MINUTE
+        )),
+        TimeSpan::from_minutes_i64(-MAX_MINUTES)
+    );
+}
+
+/// Cf. TimeSpan.cs#L433-L444 (`FromUnits`), TimeSpanTests.cs#L600-L606
+/// (`FromMinutes_Int_Single_ShouldOverflow`)
+#[test]
+fn from_minutes_i64_overflow() {
+    const MAX_MINUTES: i64 = 15_372_286_728;
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_i64(MAX_MINUTES + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_i64(-(MAX_MINUTES + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_i64(i64::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes_i64(i64::MIN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L560, TimeSpanTests.cs#L646-L653
+/// (`FromSeconds_Int_Single_ShouldCreate`)
+#[test]
+fn from_seconds_i64_basic() {
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_seconds_i64(0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_SECOND)),
+        TimeSpan::from_seconds_i64(1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_SECOND)),
+        TimeSpan::from_seconds_i64(-1)
+    );
+
+    const MAX_SECONDS: i64 = 922_337_203_685;
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            MAX_SECONDS * TimeSpan::TICKS_PER_SECOND
+        )),
+        TimeSpan::from_seconds_i64(MAX_SECONDS)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -MAX_SECONDS * TimeSpan::TICKS_PER_SECOND
+        )),
+        TimeSpan::from_seconds_i64(-MAX_SECONDS)
+    );
+}
+
+/// Cf. TimeSpan.cs#L433-L444 (`FromUnits`), TimeSpanTests.cs#L655-L661
+/// (`FromSeconds_Int_Single_ShouldOverflow`)
+#[test]
+fn from_seconds_i64_overflow() {
+    const MAX_SECONDS: i64 = 922_337_203_685;
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_i64(MAX_SECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_i64(-(MAX_SECONDS + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_i64(i64::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds_i64(i64::MIN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L591-L592. C# has no dedicated single-argument
+/// `FromMilliseconds_Int_Single_ShouldCreate` theory (only the two-argument
+/// `milliseconds, microseconds` overload is tested directly), so bounds here mirror
+/// the `internal const MinMilliseconds`/`MaxMilliseconds` comment values instead.
+#[test]
+fn from_milliseconds_i64_basic() {
+    assert_eq!(
+        TimeSpan::from_hms(0, 0, 0),
+        TimeSpan::from_milliseconds_i64(0)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MILLISECOND)),
+        TimeSpan::from_milliseconds_i64(1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_MILLISECOND)),
+        TimeSpan::from_milliseconds_i64(-1)
+    );
+
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            MAX_MILLISECONDS * TimeSpan::TICKS_PER_MILLISECOND
+        )),
+        TimeSpan::from_milliseconds_i64(MAX_MILLISECONDS)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -MAX_MILLISECONDS * TimeSpan::TICKS_PER_MILLISECOND
+        )),
+        TimeSpan::from_milliseconds_i64(-MAX_MILLISECONDS)
+    );
+}
+
+/// Cf. TimeSpan.cs#L433-L444 (`FromUnits`)
+#[test]
+fn from_milliseconds_i64_overflow() {
+    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_i64(MAX_MILLISECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_i64(-(MAX_MILLISECONDS + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_i64(i64::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds_i64(i64::MIN)
+    );
+}
+
 /// `Display` mirrors C#'s parameterless `ToString()`, which delegates to
 /// `TimeSpanFormat.FormatC` — the invariant, culture-independent constant "c" format
 /// `[-][d.]hh:mm:ss[.fffffff]`. Only the constant-format rows of the C# test's
