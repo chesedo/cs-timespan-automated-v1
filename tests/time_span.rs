@@ -895,3 +895,55 @@ fn duration_basic() {
 fn duration_overflow() {
     assert_eq!(Err(TimeSpanError::Overflow), TimeSpan::MIN.duration());
 }
+
+/// `TimeSpan / TimeSpan` divides ticks as `f64`, matching C#'s
+/// `t1.Ticks / (double)t2.Ticks`.
+///
+/// Cf. TimeSpan.cs#L936-L941 (`operator /(TimeSpan, TimeSpan)`)
+#[test]
+fn divide_time_span_operator_basic() {
+    assert_eq!(2.0, TimeSpan::from_ticks(10) / TimeSpan::from_ticks(5));
+    assert_eq!(0.5, TimeSpan::from_ticks(5) / TimeSpan::from_ticks(10));
+    assert_eq!(-2.0, TimeSpan::from_ticks(-10) / TimeSpan::from_ticks(5));
+}
+
+/// Deliberately infallible per the comment directly above the C# operator:
+/// dividing a non-zero `TimeSpan` by `TimeSpan.Zero` is defined to yield
+/// `+Infinity`/`-Infinity` rather than throwing.
+///
+/// Cf. TimeSpan.cs#L936-L941
+#[test]
+fn divide_time_span_operator_by_zero_yields_infinity() {
+    assert_eq!(
+        f64::INFINITY,
+        TimeSpan::from_ticks(1) / TimeSpan::ZERO
+    );
+    assert_eq!(
+        f64::NEG_INFINITY,
+        TimeSpan::from_ticks(-1) / TimeSpan::ZERO
+    );
+}
+
+/// `TimeSpan.Zero / TimeSpan.Zero` is defined to yield `NaN` per the same
+/// comment, rather than throwing.
+///
+/// Cf. TimeSpan.cs#L936-L941
+#[test]
+fn divide_time_span_operator_zero_by_zero_yields_nan() {
+    let result = TimeSpan::ZERO / TimeSpan::ZERO;
+    assert!(result.is_nan());
+}
+
+/// `Divide(TimeSpan)` forwards to the same operator and thus has identical
+/// infallible semantics.
+///
+/// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
+#[test]
+fn divide_time_span_method_matches_operator() {
+    assert_eq!(2.0, TimeSpan::from_ticks(10).divide_time_span(TimeSpan::from_ticks(5)));
+    assert_eq!(
+        f64::INFINITY,
+        TimeSpan::from_ticks(1).divide_time_span(TimeSpan::ZERO)
+    );
+    assert!(TimeSpan::ZERO.divide_time_span(TimeSpan::ZERO).is_nan());
+}
