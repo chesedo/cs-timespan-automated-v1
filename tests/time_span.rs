@@ -1174,7 +1174,11 @@ fn parse_exact_multiple_single_format_matches_parse_exact() {
             "fff",
             TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
         ),
-        ("1.12:24:02", "c", TimeSpan::from_dhms(1, 12, 24, 2).unwrap()),
+        (
+            "1.12:24:02",
+            "c",
+            TimeSpan::from_dhms(1, 12, 24, 2).unwrap(),
+        ),
         ("12:24:02", "g", TimeSpan::from_hms(12, 24, 2).unwrap()),
     ];
 
@@ -1287,11 +1291,7 @@ fn parse_exact_multiple_overflow_becomes_invalid_format() {
     );
     assert_eq!(
         Err(TimeSpanError::InvalidFormat),
-        TimeSpan::parse_exact_multiple(
-            "12.35:32:43",
-            &[r"dd\.h\:m\:s"],
-            TimeSpanStyles::None
-        ),
+        TimeSpan::parse_exact_multiple("12.35:32:43", &[r"dd\.h\:m\:s"], TimeSpanStyles::None),
         "the array overload must not leak the inner Overflow — it's swallowed into the \
          generic bad-format failure once every format has failed"
     );
