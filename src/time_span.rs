@@ -372,14 +372,36 @@ impl TimeSpan {
             .ok_or(TimeSpanError::Overflow)
     }
 
-    /// Cf. TimeSpan.cs#L689 (instance `Multiply`)
-    pub fn checked_mul(self, _factor: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    /// Rounding to the nearest tick is as close to the result we'd have with
+    /// unlimited precision as possible, and so likely to have the least potential
+    /// to surprise — matching the comment directly above C#'s own `Math.Round` call.
+    /// `Math.Round(double)` with no `MidpointRounding` argument rounds half to even
+    /// (banker's rounding, e.g. `Math.Round(2.5) == 2.0`), not `f64::round()`'s
+    /// round-half-away-from-zero (`2.5f64.round() == 3.0`) — `f64::round_ties_even`
+    /// is the match.
+    ///
+    /// Cf. TimeSpan.cs#L689 (instance `Multiply`), TimeSpan.cs#L907-L919 (`operator *`)
+    pub fn checked_mul(self, factor: f64) -> Result<Self, TimeSpanError> {
+        if factor.is_nan() {
+            return Err(TimeSpanError::NotANumber);
+        }
+
+        let ticks = (self.ticks as f64 * factor).round_ties_even();
+        Self::interval_from_double_ticks(ticks)
     }
 
-    /// Cf. TimeSpan.cs#L691 (instance `Divide(double)`)
-    pub fn checked_div(self, _divisor: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    /// Same round-half-to-even rationale as [`Self::checked_mul`] — see its doc
+    /// comment.
+    ///
+    /// Cf. TimeSpan.cs#L691 (instance `Divide(double)`), TimeSpan.cs#L925-L934
+    /// (`operator /`)
+    pub fn checked_div(self, divisor: f64) -> Result<Self, TimeSpanError> {
+        if divisor.is_nan() {
+            return Err(TimeSpanError::NotANumber);
+        }
+
+        let ticks = (self.ticks as f64 / divisor).round_ties_even();
+        Self::interval_from_double_ticks(ticks)
     }
 
     /// Infallible: mirrors C#'s floating-point `TimeSpan / TimeSpan`, which can
@@ -1245,30 +1267,43 @@ impl std::ops::Add for TimeSpan {
     }
 }
 
+/// Built on [`TimeSpan::checked_mul`]. Rust's `Mul` trait can't return a `Result`,
+/// so overflow (or a NaN `factor`) panics here, mirroring C#'s `OverflowException`/
+/// `ArgumentException` from `operator*`.
+///
 /// Cf. TimeSpan.cs#L907-L919
 impl std::ops::Mul<f64> for TimeSpan {
     type Output = Self;
 
-    fn mul(self, _factor: f64) -> Self::Output {
-        todo!()
+    fn mul(self, factor: f64) -> Self::Output {
+        self.checked_mul(factor)
+            .expect("TimeSpan multiplication overflowed its representable range, or factor was NaN")
     }
 }
 
+/// Delegates to `TimeSpan * f64`, mirroring C#'s own `operator *(double, TimeSpan)`,
+/// which is itself defined purely as `timeSpan * factor`.
+///
 /// Cf. TimeSpan.cs#L921-L922
 impl std::ops::Mul<TimeSpan> for f64 {
     type Output = TimeSpan;
 
-    fn mul(self, _timespan: TimeSpan) -> Self::Output {
-        todo!()
+    fn mul(self, timespan: TimeSpan) -> Self::Output {
+        timespan * self
     }
 }
 
-/// Cf. TimeSpan.cs#L924-L934
+/// Built on [`TimeSpan::checked_div`]. Rust's `Div` trait can't return a `Result`,
+/// so overflow (or a NaN `divisor`) panics here, mirroring C#'s `OverflowException`/
+/// `ArgumentException` from `operator/`.
+///
+/// Cf. TimeSpan.cs#L925-L934
 impl std::ops::Div<f64> for TimeSpan {
     type Output = Self;
 
-    fn div(self, _divisor: f64) -> Self::Output {
-        todo!()
+    fn div(self, divisor: f64) -> Self::Output {
+        self.checked_div(divisor)
+            .expect("TimeSpan division overflowed its representable range, or divisor was NaN")
     }
 }
 
