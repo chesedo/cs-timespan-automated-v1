@@ -2106,10 +2106,94 @@ fn try_format_valid() {
     }
 }
 
+/// The custom-format-string counterpart to `try_format_valid`: `try_format`'s
+/// non-allocating path also covers the custom-format-string mini-language, not just
+/// the five standard formats — mirroring `to_string_format_custom`'s cases and
+/// `try_format_valid`'s buffer-sizing contract (one byte short fails and writes
+/// nothing, exact-size succeeds and fills completely, one byte larger succeeds and
+/// leaves the trailing byte untouched).
+///
+/// Cf. TimeSpanTests.cs#L1843-L1888 (`TryFormat_Valid`, sharing `ToString_TestData`
+/// with `ToString(string)` — TimeSpanTests.cs#L1546-1570's custom-format rows)
+#[test]
+fn try_format_custom() {
+    let input = TimeSpan::from_ticks(123_456_789_101_112);
+
+    let cases: &[(&str, &str)] = &[
+        ("%d", "142"),
+        ("dd", "142"),
+        ("%h", "21"),
+        ("hh", "21"),
+        ("%m", "21"),
+        ("mm", "21"),
+        ("%s", "18"),
+        ("ss", "18"),
+        ("%f", "9"),
+        ("fffffff", "9101112"),
+        ("%F", "9"),
+        ("FFFFFFF", "9101112"),
+        ("dd\\.ss", "142.18"),
+        ("dddddd\\.ss", "000142.18"),
+    ];
+
+    for (format, expected) in cases {
+        let expected_len = expected.len();
+
+        // One byte too short: fails, and nothing is written.
+        let mut too_small = vec![0u8; expected_len - 1];
+        assert_eq!(
+            Err(TimeSpanError::InsufficientBuffer),
+            input.try_format(&mut too_small, format),
+            "format {format:?}"
+        );
+
+        // Exactly long enough: succeeds, buffer filled exactly.
+        let mut exact = vec![0u8; expected_len];
+        let written = input.try_format(&mut exact, format).unwrap();
+        assert_eq!(expected_len, written, "format {format:?}");
+        assert_eq!(
+            *expected,
+            std::str::from_utf8(&exact).unwrap(),
+            "format {format:?}"
+        );
+
+        // One byte larger than needed: succeeds, trailing byte left untouched.
+        let mut larger = vec![0u8; expected_len + 1];
+        let written = input.try_format(&mut larger, format).unwrap();
+        assert_eq!(expected_len, written, "format {format:?}");
+        assert_eq!(
+            *expected,
+            std::str::from_utf8(&larger[..written]).unwrap(),
+            "format {format:?}"
+        );
+        assert_eq!(0, larger[larger.len() - 1], "format {format:?}");
+    }
+}
+
+/// Custom format strings never write a sign character, matching
+/// `to_string_format_custom_no_sign` — verified here through the non-allocating
+/// `try_format` path too.
+///
+/// Cf. TimeSpanFormat.cs#L301-312
+#[test]
+fn try_format_custom_no_sign() {
+    let positive = TimeSpan::from_hms(1, 2, 3).unwrap();
+    let negative = -positive;
+
+    let mut buf = [0u8; 8];
+    let written = positive.try_format(&mut buf, "hh\\:mm\\:ss").unwrap();
+    assert_eq!("01:02:03", std::str::from_utf8(&buf[..written]).unwrap());
+
+    let mut buf = [0u8; 8];
+    let written = negative.try_format(&mut buf, "hh\\:mm\\:ss").unwrap();
+    assert_eq!("01:02:03", std::str::from_utf8(&buf[..written]).unwrap());
+}
+
 /// Mirrors `to_string_format_invalid`, but through `try_format`: an invalid format
 /// string reports [`TimeSpanError::InvalidFormat`] regardless of buffer size, checked
 /// before any buffer-length validation (matching C#, where `FormatException` is thrown
-/// even when passed a 1-element destination span).
+/// even when passed a 1-element destination span) — including a syntactically invalid
+/// *custom* format string, not just an invalid single-character standard format.
 ///
 /// Cf. TimeSpanTests.cs#L1890-L1896 (`TryFormat_InvalidFormat_ThrowsFormatException`)
 #[test]
@@ -2122,10 +2206,14 @@ fn try_format_invalid_format() {
         );
     }
 
+    // "hhh": an 'h' run > 2 is a syntactically invalid *custom* format string
+    // (TimeSpanFormat.cs#L326-329) — rejected the same way as an invalid standard
+    // format, even though it's a multi-character string that reaches the custom-
+    // format tokenizer rather than the standard-format special case.
     let mut buf = [0u8; 1];
     assert_eq!(
         Err(TimeSpanError::InvalidFormat),
-        TimeSpan::from_ticks(123_456_789_101_112).try_format(&mut buf, "dd\\.ss")
+        TimeSpan::from_ticks(123_456_789_101_112).try_format(&mut buf, "hhh")
     );
 }
 

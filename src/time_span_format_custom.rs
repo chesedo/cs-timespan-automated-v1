@@ -18,8 +18,13 @@
 //! handling (the decimal separator inside quoted/literal spans is irrelevant here since
 //! custom format strings have no built-in fraction separator token — callers spell it out
 //! themselves, e.g. `"dd\\.ss"` — but `TryFormatStandard`'s culture-aware decimal separator
-//! for `"g"`/`"G"` remains out of scope, matching the rest of this crate), and the
-//! `TChar`/UTF-8 `TryFormat` overload (this module only produces an owned `String`).
+//! for `"g"`/`"G"` remains out of scope, matching the rest of this crate).
+//!
+//! [`TimeSpan::try_format`] (the non-allocating `TChar`/UTF-8 `TryFormat` counterpart)
+//! also routes custom format strings through [`format_customized`] rather than a
+//! parallel buffer-writing tokenizer, then copies the resulting `String`'s bytes into
+//! the caller's destination — see `try_format`'s doc comment for why that's a
+//! deliberate tradeoff rather than an oversight.
 
 use crate::TimeSpanError;
 use crate::time_span::TimeSpan;

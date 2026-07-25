@@ -889,13 +889,33 @@ impl TimeSpan {
     /// since the output is always ASCII — so no separate char-buffer overload is
     /// needed here, unlike C#'s two generic `TChar` instantiations.
     ///
-    /// Supports the same standard format specifiers as [`TimeSpan::to_string_format`]
-    /// (an empty string, `"c"`, `"t"`, `"T"`, `"g"`, `"G"`); any other single
-    /// character or format string of length != 1 returns
+    /// Supports the same format strings as [`TimeSpan::to_string_format`]: an empty
+    /// string, the standard `"c"`/`"t"`/`"T"`/`"g"`/`"G"` single-character formats, and
+    /// the custom-format-string mini-language (`%d`/`dd`...`dddddddd`, `%h`/`hh`, `%m`/
+    /// `mm`, `%s`/`ss`, `%f`/`ff`...`fffffff`, `%F`/`FF`...`FFFFFFF`, `'...'`/`"..."`
+    /// quoting, `\`-escaping — see `to_string_format`'s doc comment for the full
+    /// rundown). A single character that isn't one of the five standard formats, or a
+    /// syntactically invalid custom format string, returns
     /// [`TimeSpanError::InvalidFormat`], checked before `destination`'s length (so an
     /// invalid format string is reported even when `destination` is too short to hold
-    /// any output). Custom format strings remain out of scope, same as
-    /// `to_string_format` — see that method's doc comment.
+    /// any output).
+    ///
+    /// The custom-format path is not zero-allocation: it formats into an intermediate
+    /// `String` via the same [`format_customized`](crate::time_span_format_custom::format_customized)
+    /// helper `to_string_format` uses, then copies those bytes into `destination` (or
+    /// reports [`TimeSpanError::InsufficientBuffer`] without copying anything, if it
+    /// doesn't fit) — unlike the standard-format path, which computes the required
+    /// length and writes `destination` directly with no intermediate allocation. This
+    /// mirrors upstream's own shape: C#'s `TryFormat<TChar>` builds custom-format
+    /// output into a scratch `ValueListBuilder<TChar>` (stack-allocated up to 256
+    /// `TChar`s, spilling to the heap beyond that) before copying it into the caller's
+    /// `destination` via `ValueListBuilder.TryCopyTo` — which is itself all-or-nothing,
+    /// writing nothing and returning `false` if `destination` is too small. A
+    /// hand-written buffer-writing tokenizer that avoided the intermediate allocation
+    /// entirely would need to duplicate `format_customized`'s digit/fraction-writing
+    /// logic against a `&mut [u8]` target instead of `String` — a larger, riskier
+    /// rewrite for a colder path than the standard formats; this crate accepts the one
+    /// intermediate allocation instead.
     ///
     /// Returns the number of bytes written on success. Returns
     /// [`TimeSpanError::InsufficientBuffer`] — writing nothing — when `destination` is
@@ -907,7 +927,9 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpanFormat.cs#L50-L82 (`TryFormat<TChar>`), TimeSpanFormat.cs#L109-L294
     /// (`TryFormatStandard<TChar>`, its `requiredOutputLength` computation and
-    /// insufficient-space `false` return)
+    /// insufficient-space `false` return), TimeSpanFormat.cs#L77-81 (`TryFormat`'s
+    /// custom-format branch: scratch `ValueListBuilder<TChar>` then `TryCopyTo`),
+    /// ValueListBuilder.cs#L149-159 (`TryCopyTo`'s all-or-nothing contract)
     ///
     /// ```
     /// use cs_timespan_automated_v1::TimeSpan;
@@ -915,6 +937,9 @@ impl TimeSpan {
     /// let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
     /// let mut buf = [0u8; 32];
     /// let written = ts.try_format(&mut buf, "c").unwrap();
+    /// assert_eq!(&buf[..written], b"01:02:03");
+    ///
+    /// let written = ts.try_format(&mut buf, "hh\\:mm\\:ss").unwrap();
     /// assert_eq!(&buf[..written], b"01:02:03");
     /// ```
     pub fn try_format(&self, destination: &mut [u8], format: &str) -> Result<usize, TimeSpanError> {
@@ -927,10 +952,35 @@ impl TimeSpan {
             (Some('c' | 't' | 'T'), None) => StandardFormat::Constant,
             (Some('g'), None) => StandardFormat::GeneralShort,
             (Some('G'), None) => StandardFormat::GeneralLong,
-            _ => return Err(TimeSpanError::InvalidFormat),
+            (Some(_), None) => return Err(TimeSpanError::InvalidFormat),
+            _ => return self.try_format_customized(destination, format),
         };
 
         self.try_format_standard(standard, destination)
+    }
+
+    /// Non-allocating* custom-format-string counterpart to [`TimeSpan::try_format`]'s
+    /// standard-format path, backing `try_format` for any format string that isn't one
+    /// of the five standard specifiers. See `try_format`'s doc comment for the
+    /// allocation tradeoff this makes (one intermediate `String`, mirroring C#'s own
+    /// scratch-buffer-then-copy shape).
+    ///
+    /// Cf. TimeSpanFormat.cs#L77-81 (`TryFormat`'s custom-format branch),
+    /// ValueListBuilder.cs#L149-159 (`TryCopyTo`)
+    fn try_format_customized(
+        &self,
+        destination: &mut [u8],
+        format: &str,
+    ) -> Result<usize, TimeSpanError> {
+        let formatted = crate::time_span_format_custom::format_customized(*self, format)?;
+        let bytes = formatted.as_bytes();
+
+        if destination.len() < bytes.len() {
+            return Err(TimeSpanError::InsufficientBuffer);
+        }
+
+        destination[..bytes.len()].copy_from_slice(bytes);
+        Ok(bytes.len())
     }
 
     /// Shared implementation backing [`TimeSpan::try_format`] for all three standard
