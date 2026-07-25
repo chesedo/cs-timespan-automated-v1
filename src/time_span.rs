@@ -548,6 +548,16 @@ impl std::ops::Div<TimeSpan> for TimeSpan {
 /// equivalent for custom-format-string/culture handling.
 ///
 /// Cf. TimeSpan.cs#L722-L727
+///
+/// ```
+/// use cs_timespan_automated_v1::TimeSpan;
+///
+/// let ts: TimeSpan = "1.02:03:04".parse().unwrap();
+/// assert_eq!(ts.days(), 1);
+/// assert_eq!(ts.hours(), 2);
+/// assert_eq!(ts.minutes(), 3);
+/// assert_eq!(ts.seconds(), 4);
+/// ```
 impl FromStr for TimeSpan {
     type Err = TimeSpanError;
 
