@@ -57,9 +57,25 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L233
     pub const MIN: TimeSpan = TimeSpan { ticks: i64::MIN };
 
+    /// Cf. TimeSpan.cs#L225-L226 (internal `MinDays`/`MaxDays`)
+    const MIN_DAYS: i64 = i64::MIN / Self::TICKS_PER_DAY;
+    const MAX_DAYS: i64 = i64::MAX / Self::TICKS_PER_DAY;
+
+    /// Cf. TimeSpan.cs#L222-L223 (internal `MinHours`/`MaxHours`)
+    const MIN_HOURS: i64 = i64::MIN / Self::TICKS_PER_HOUR;
+    const MAX_HOURS: i64 = i64::MAX / Self::TICKS_PER_HOUR;
+
+    /// Cf. TimeSpan.cs#L219-L220 (internal `MinMinutes`/`MaxMinutes`)
+    const MIN_MINUTES: i64 = i64::MIN / Self::TICKS_PER_MINUTE;
+    const MAX_MINUTES: i64 = i64::MAX / Self::TICKS_PER_MINUTE;
+
     /// Cf. TimeSpan.cs#L216-L217 (internal `MinSeconds`/`MaxSeconds`)
     const MIN_SECONDS: i64 = i64::MIN / Self::TICKS_PER_SECOND;
     const MAX_SECONDS: i64 = i64::MAX / Self::TICKS_PER_SECOND;
+
+    /// Cf. TimeSpan.cs#L213-L214 (internal `MinMilliseconds`/`MaxMilliseconds`)
+    const MIN_MILLISECONDS: i64 = i64::MIN / Self::TICKS_PER_MILLISECOND;
+    const MAX_MILLISECONDS: i64 = i64::MAX / Self::TICKS_PER_MILLISECOND;
 
     /// Cf. TimeSpan.cs#L210-L211 (internal `MinMicroseconds`/`MaxMicroseconds`)
     const MIN_MICROSECONDS: i64 = i64::MIN / Self::TICKS_PER_MICROSECOND;
@@ -380,9 +396,52 @@ impl TimeSpan {
         })
     }
 
+    /// Bounds-checks a raw unit count against `[min_units, max_units]` before
+    /// converting to ticks. Shared by the single-argument integer `FromX`
+    /// overloads below (e.g. [`Self::from_days_i32`]) — a distinct validation
+    /// path from both the `f64`/`Interval`-based overloads (e.g.
+    /// [`Self::from_days`]) and the multi-component `_parts` constructors (e.g.
+    /// [`Self::from_days_parts`]).
+    ///
+    /// `min_units`/`max_units` are always `i64::MIN`/`i64::MAX` divided by
+    /// `ticks_per_unit` (truncating division), so `units * ticks_per_unit` can't
+    /// overflow once `units` has passed the range check.
+    ///
+    /// Cf. TimeSpan.cs#L433-L444 (private `FromUnits`)
+    fn from_units(
+        units: i64,
+        ticks_per_unit: i64,
+        min_units: i64,
+        max_units: i64,
+    ) -> Result<Self, TimeSpanError> {
+        if units > max_units || units < min_units {
+            return Err(TimeSpanError::Overflow);
+        }
+        Ok(TimeSpan {
+            ticks: units * ticks_per_unit,
+        })
+    }
+
     /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L455
     pub fn from_days(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_DAY as f64)
+    }
+
+    /// Single-argument integer overload, bounds-checked against the whole-day
+    /// range via [`Self::from_units`] — distinct from [`Self::from_days`]'s
+    /// `f64`/`Interval`-based overload and [`Self::from_days_parts`]'s
+    /// multi-component constructor. Named `_i32` (rather than reusing
+    /// `from_days`) because Rust doesn't support overloading by parameter type,
+    /// unlike C#'s `FromDays(int)`/`FromDays(double)` pair.
+    ///
+    /// Cf. TimeSpan.cs#L455
+    pub fn from_days_i32(days: i32) -> Result<Self, TimeSpanError> {
+        Self::from_units(
+            days as i64,
+            Self::TICKS_PER_DAY,
+            Self::MIN_DAYS,
+            Self::MAX_DAYS,
+        )
     }
 
     /// Cf. TimeSpan.cs#L471-L481. The C# overload takes optional trailing
@@ -404,6 +463,21 @@ impl TimeSpan {
         Self::interval(value, Self::TICKS_PER_HOUR as f64)
     }
 
+    /// Single-argument integer overload, bounds-checked against the whole-hour
+    /// range via [`Self::from_units`] — distinct from [`Self::from_hours`]'s
+    /// `f64`/`Interval`-based overload and [`Self::from_hours_parts`]'s
+    /// multi-component constructor.
+    ///
+    /// Cf. TimeSpan.cs#L492
+    pub fn from_hours_i32(hours: i32) -> Result<Self, TimeSpanError> {
+        Self::from_units(
+            hours as i64,
+            Self::TICKS_PER_HOUR,
+            Self::MIN_HOURS,
+            Self::MAX_HOURS,
+        )
+    }
+
     /// Cf. TimeSpan.cs#L507-L516
     pub fn from_hours_parts(
         _hours: i32,
@@ -418,6 +492,22 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L527, TimeSpan.cs#L681
     pub fn from_minutes(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_MINUTE as f64)
+    }
+
+    /// Single-argument integer overload, bounds-checked against the
+    /// whole-minute range via [`Self::from_units`] — distinct from
+    /// [`Self::from_minutes`]'s `f64`/`Interval`-based overload and
+    /// [`Self::from_minutes_parts`]'s multi-component constructor. Takes `i64`
+    /// (rather than `i32`) matching C#'s `FromMinutes(long)`.
+    ///
+    /// Cf. TimeSpan.cs#L527
+    pub fn from_minutes_i64(minutes: i64) -> Result<Self, TimeSpanError> {
+        Self::from_units(
+            minutes,
+            Self::TICKS_PER_MINUTE,
+            Self::MIN_MINUTES,
+            Self::MAX_MINUTES,
+        )
     }
 
     /// Cf. TimeSpan.cs#L541-L549
@@ -435,6 +525,22 @@ impl TimeSpan {
         Self::interval(value, Self::TICKS_PER_SECOND as f64)
     }
 
+    /// Single-argument integer overload, bounds-checked against the
+    /// whole-second range via [`Self::from_units`] — distinct from
+    /// [`Self::from_seconds`]'s `f64`/`Interval`-based overload and
+    /// [`Self::from_seconds_parts`]'s multi-component constructor. Takes `i64`
+    /// (rather than `i32`) matching C#'s `FromSeconds(long)`.
+    ///
+    /// Cf. TimeSpan.cs#L560
+    pub fn from_seconds_i64(seconds: i64) -> Result<Self, TimeSpanError> {
+        Self::from_units(
+            seconds,
+            Self::TICKS_PER_SECOND,
+            Self::MIN_SECONDS,
+            Self::MAX_SECONDS,
+        )
+    }
+
     /// Cf. TimeSpan.cs#L573-L580
     pub fn from_seconds_parts(
         _seconds: i64,
@@ -447,6 +553,22 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L591-L592, TimeSpan.cs#L658
     pub fn from_milliseconds(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_MILLISECOND as f64)
+    }
+
+    /// Single-argument integer overload, bounds-checked against the
+    /// whole-millisecond range via [`Self::from_units`] — distinct from
+    /// [`Self::from_milliseconds`]'s `f64`/`Interval`-based overload and
+    /// [`Self::from_milliseconds_parts`]'s multi-component constructor. Takes
+    /// `i64` (rather than `i32`) matching C#'s `FromMilliseconds(long)`.
+    ///
+    /// Cf. TimeSpan.cs#L591-L592
+    pub fn from_milliseconds_i64(milliseconds: i64) -> Result<Self, TimeSpanError> {
+        Self::from_units(
+            milliseconds,
+            Self::TICKS_PER_MILLISECOND,
+            Self::MIN_MILLISECONDS,
+            Self::MAX_MILLISECONDS,
+        )
     }
 
     /// Cf. TimeSpan.cs#L604-L610

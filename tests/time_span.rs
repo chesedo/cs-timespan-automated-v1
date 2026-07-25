@@ -953,7 +953,7 @@ fn divide_time_span_method_matches_operator() {
 /// Cf. TimeSpan.cs#L455, TimeSpanTests.cs#L507-L516 (`FromDays_Int_Single_ShouldCreate`)
 #[test]
 fn from_days_i32_basic() {
-    assert_eq!(Ok(TimeSpan::from_hms(0, 0, 0)), TimeSpan::from_days_i32(0));
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_days_i32(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY)),
         TimeSpan::from_days_i32(1)
@@ -965,11 +965,15 @@ fn from_days_i32_basic() {
 
     const MAX_DAYS: i32 = 10_675_199;
     assert_eq!(
-        Ok(TimeSpan::from_ticks(MAX_DAYS as i64 * TimeSpan::TICKS_PER_DAY)),
+        Ok(TimeSpan::from_ticks(
+            MAX_DAYS as i64 * TimeSpan::TICKS_PER_DAY
+        )),
         TimeSpan::from_days_i32(MAX_DAYS)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-MAX_DAYS as i64 * TimeSpan::TICKS_PER_DAY)),
+        Ok(TimeSpan::from_ticks(
+            -MAX_DAYS as i64 * TimeSpan::TICKS_PER_DAY
+        )),
         TimeSpan::from_days_i32(-MAX_DAYS)
     );
 }
@@ -1001,7 +1005,7 @@ fn from_days_i32_overflow() {
 /// (`FromHours_Int_Single_ShouldCreate`)
 #[test]
 fn from_hours_i32_basic() {
-    assert_eq!(Ok(TimeSpan::from_hms(0, 0, 0)), TimeSpan::from_hours_i32(0));
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_hours_i32(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_HOUR)),
         TimeSpan::from_hours_i32(1)
@@ -1013,11 +1017,15 @@ fn from_hours_i32_basic() {
 
     const MAX_HOURS: i32 = 256_204_778;
     assert_eq!(
-        Ok(TimeSpan::from_ticks(MAX_HOURS as i64 * TimeSpan::TICKS_PER_HOUR)),
+        Ok(TimeSpan::from_ticks(
+            MAX_HOURS as i64 * TimeSpan::TICKS_PER_HOUR
+        )),
         TimeSpan::from_hours_i32(MAX_HOURS)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-MAX_HOURS as i64 * TimeSpan::TICKS_PER_HOUR)),
+        Ok(TimeSpan::from_ticks(
+            -MAX_HOURS as i64 * TimeSpan::TICKS_PER_HOUR
+        )),
         TimeSpan::from_hours_i32(-MAX_HOURS)
     );
 }
@@ -1049,10 +1057,7 @@ fn from_hours_i32_overflow() {
 /// (`FromMinutes_Int_Single_ShouldCreate`)
 #[test]
 fn from_minutes_i64_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_hms(0, 0, 0)),
-        TimeSpan::from_minutes_i64(0)
-    );
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_minutes_i64(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MINUTE)),
         TimeSpan::from_minutes_i64(1)
@@ -1064,11 +1069,15 @@ fn from_minutes_i64_basic() {
 
     const MAX_MINUTES: i64 = 15_372_286_728;
     assert_eq!(
-        Ok(TimeSpan::from_ticks(MAX_MINUTES * TimeSpan::TICKS_PER_MINUTE)),
+        Ok(TimeSpan::from_ticks(
+            MAX_MINUTES * TimeSpan::TICKS_PER_MINUTE
+        )),
         TimeSpan::from_minutes_i64(MAX_MINUTES)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-MAX_MINUTES * TimeSpan::TICKS_PER_MINUTE)),
+        Ok(TimeSpan::from_ticks(
+            -MAX_MINUTES * TimeSpan::TICKS_PER_MINUTE
+        )),
         TimeSpan::from_minutes_i64(-MAX_MINUTES)
     );
 }
@@ -1100,10 +1109,7 @@ fn from_minutes_i64_overflow() {
 /// (`FromSeconds_Int_Single_ShouldCreate`)
 #[test]
 fn from_seconds_i64_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_hms(0, 0, 0)),
-        TimeSpan::from_seconds_i64(0)
-    );
+    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_seconds_i64(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_SECOND)),
         TimeSpan::from_seconds_i64(1)
@@ -1115,11 +1121,15 @@ fn from_seconds_i64_basic() {
 
     const MAX_SECONDS: i64 = 922_337_203_685;
     assert_eq!(
-        Ok(TimeSpan::from_ticks(MAX_SECONDS * TimeSpan::TICKS_PER_SECOND)),
+        Ok(TimeSpan::from_ticks(
+            MAX_SECONDS * TimeSpan::TICKS_PER_SECOND
+        )),
         TimeSpan::from_seconds_i64(MAX_SECONDS)
     );
     assert_eq!(
-        Ok(TimeSpan::from_ticks(-MAX_SECONDS * TimeSpan::TICKS_PER_SECOND)),
+        Ok(TimeSpan::from_ticks(
+            -MAX_SECONDS * TimeSpan::TICKS_PER_SECOND
+        )),
         TimeSpan::from_seconds_i64(-MAX_SECONDS)
     );
 }
@@ -1154,7 +1164,7 @@ fn from_seconds_i64_overflow() {
 #[test]
 fn from_milliseconds_i64_basic() {
     assert_eq!(
-        Ok(TimeSpan::from_hms(0, 0, 0)),
+        TimeSpan::from_hms(0, 0, 0),
         TimeSpan::from_milliseconds_i64(0)
     );
     assert_eq!(
