@@ -1260,6 +1260,205 @@ fn display_constant_format() {
     );
 }
 
+/// `to_string_format` mirrors C#'s `ToString(string? format)` for the constant `"c"`
+/// format and its `"t"`/`"T"` aliases, plus an empty/absent format string — all four
+/// route to the same invariant output as `Display`. Only the invariant-culture rows of
+/// the C# test's `ToString_TestData` constant-format block are ported (culture is
+/// always ignored for `"c"`/`"t"`/`"T"`, matching `Display`'s existing scope).
+///
+/// Cf. TimeSpanTests.cs#L1572-L1591 (`ToString_TestData`, constant-format rows),
+/// TimeSpanTests.cs#L1656-L1669 (`ToString_Valid`)
+#[test]
+fn to_string_format_constant() {
+    let cases: &[(TimeSpan, &str)] = &[
+        (
+            TimeSpan::from_ticks(123_456_789_101_112),
+            "142.21:21:18.9101112",
+        ),
+        (TimeSpan::ZERO, "00:00:00"),
+        (TimeSpan::from_ticks(1), "00:00:00.0000001"),
+        (TimeSpan::from_ticks(-1), "-00:00:00.0000001"),
+        (TimeSpan::MAX, "10675199.02:48:05.4775807"),
+        (TimeSpan::MIN, "-10675199.02:48:05.4775808"),
+    ];
+
+    for (input, expected) in cases {
+        for format in ["", "c", "t", "T"] {
+            assert_eq!(Ok((*expected).to_string()), input.to_string_format(format));
+        }
+    }
+}
+
+/// The general short `"g"` format: variable-width hours (one digit when `< 10`), the
+/// day segment omitted entirely when zero, and a fraction shown only when non-zero
+/// with trailing zeros trimmed. Only the invariant-culture rows are ported — the
+/// `NumberDecimalSeparator`-varies-by-culture rows are permanently out of scope (this
+/// crate has no culture/locale support anywhere, matching `Display`'s existing
+/// invariant-only scope for `"c"`).
+///
+/// Cf. TimeSpanFormat.cs `TryFormatStandard` (`StandardFormat.g` branch),
+/// TimeSpanTests.cs#L1593-L1606 (`ToString_TestData`, general short format rows)
+#[test]
+fn to_string_format_general_short() {
+    assert_eq!(
+        Ok("142:21:21:18.9101112".to_string()),
+        TimeSpan::from_ticks(123_456_789_101_112).to_string_format("g")
+    );
+    assert_eq!(
+        Ok("0:00:00".to_string()),
+        TimeSpan::ZERO.to_string_format("g")
+    );
+    assert_eq!(
+        Ok("0:00:00.0000001".to_string()),
+        TimeSpan::from_ticks(1).to_string_format("g")
+    );
+    assert_eq!(
+        Ok("-0:00:00.0000001".to_string()),
+        TimeSpan::from_ticks(-1).to_string_format("g")
+    );
+    assert_eq!(
+        Ok("10675199:2:48:05.4775807".to_string()),
+        TimeSpan::MAX.to_string_format("g")
+    );
+    assert_eq!(
+        Ok("-10675199:2:48:05.4775808".to_string()),
+        TimeSpan::MIN.to_string_format("g")
+    );
+    assert_eq!(
+        Ok("1:02:03".to_string()),
+        TimeSpan::from_hms(1, 2, 3).unwrap().to_string_format("g")
+    );
+    assert_eq!(
+        Ok("-1:02:03".to_string()),
+        (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string_format("g")
+    );
+    assert_eq!(
+        Ok("12:34:56".to_string()),
+        TimeSpan::from_hms(12, 34, 56)
+            .unwrap()
+            .to_string_format("g")
+    );
+    assert_eq!(
+        Ok("13:10:56:23".to_string()),
+        TimeSpan::from_dhms(12, 34, 56, 23)
+            .unwrap()
+            .to_string_format("g")
+    );
+    assert_eq!(
+        Ok("13:10:56:23.045".to_string()),
+        TimeSpan::from_dhms_milli(12, 34, 56, 23, 45)
+            .unwrap()
+            .to_string_format("g")
+    );
+    assert_eq!(
+        Ok("23:59:59.999".to_string()),
+        TimeSpan::from_dhms_milli(0, 23, 59, 59, 999)
+            .unwrap()
+            .to_string_format("g")
+    );
+}
+
+/// The general long `"G"` format: always two-digit hours, the day segment always
+/// present (`"0:"` when zero), and the fraction always shown at full 7-digit width.
+/// Only the invariant-culture rows are ported; see `to_string_format_general_short`'s
+/// doc comment for why the culture-varying rows are excluded.
+///
+/// Cf. TimeSpanFormat.cs `TryFormatStandard` (`StandardFormat.G` branch),
+/// TimeSpanTests.cs#L1624-L1636 (`ToString_TestData`, general long format rows)
+#[test]
+fn to_string_format_general_long() {
+    assert_eq!(
+        Ok("142:21:21:18.9101112".to_string()),
+        TimeSpan::from_ticks(123_456_789_101_112).to_string_format("G")
+    );
+    assert_eq!(
+        Ok("0:00:00:00.0000000".to_string()),
+        TimeSpan::ZERO.to_string_format("G")
+    );
+    assert_eq!(
+        Ok("0:00:00:00.0000001".to_string()),
+        TimeSpan::from_ticks(1).to_string_format("G")
+    );
+    assert_eq!(
+        Ok("-0:00:00:00.0000001".to_string()),
+        TimeSpan::from_ticks(-1).to_string_format("G")
+    );
+    assert_eq!(
+        Ok("10675199:02:48:05.4775807".to_string()),
+        TimeSpan::MAX.to_string_format("G")
+    );
+    assert_eq!(
+        Ok("-10675199:02:48:05.4775808".to_string()),
+        TimeSpan::MIN.to_string_format("G")
+    );
+    assert_eq!(
+        Ok("0:01:02:03.0000000".to_string()),
+        TimeSpan::from_hms(1, 2, 3).unwrap().to_string_format("G")
+    );
+    assert_eq!(
+        Ok("-0:01:02:03.0000000".to_string()),
+        (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string_format("G")
+    );
+    assert_eq!(
+        Ok("0:12:34:56.0000000".to_string()),
+        TimeSpan::from_hms(12, 34, 56)
+            .unwrap()
+            .to_string_format("G")
+    );
+    assert_eq!(
+        Ok("13:10:56:23.0000000".to_string()),
+        TimeSpan::from_dhms(12, 34, 56, 23)
+            .unwrap()
+            .to_string_format("G")
+    );
+    assert_eq!(
+        Ok("13:10:56:23.0450000".to_string()),
+        TimeSpan::from_dhms_milli(12, 34, 56, 23, 45)
+            .unwrap()
+            .to_string_format("G")
+    );
+    assert_eq!(
+        Ok("0:23:59:59.9990000".to_string()),
+        TimeSpan::from_dhms_milli(0, 23, 59, 59, 999)
+            .unwrap()
+            .to_string_format("G")
+    );
+}
+
+/// A single-character format outside `"c"`/`"t"`/`"T"`/`"g"`/`"G"`, or any format
+/// string of length != 1 (custom format strings aren't implemented by this crate
+/// yet — see the `to_string_format` doc comment), reports [`TimeSpanError::InvalidFormat`]
+/// rather than panicking, mirroring C#'s `FormatException`.
+///
+/// Cf. TimeSpanTests.cs#L1671-L1684 (`ToString_InvalidFormat_TestData`,
+/// `ToString_InvalidFormat_ThrowsFormatException`)
+#[test]
+fn to_string_format_invalid() {
+    // TimeSpanTests.cs#L1673-L1676: single characters that aren't valid standard
+    // format specifiers (uppercase "C" is deliberately invalid in C# too - only
+    // lowercase "c" is the constant format; "F" is a custom-format-only token).
+    for format in ["y", "F", "C"] {
+        assert_eq!(
+            Err(TimeSpanError::InvalidFormat),
+            TimeSpan::ZERO.to_string_format(format)
+        );
+    }
+    // TimeSpanTests.cs#L1674: "cc" is a 2-character custom format string in C#
+    // (invalid there too, since 'c' isn't a recognized custom-format token); this
+    // crate doesn't implement the custom-format tokenizer at all yet, so any
+    // multi-character format string is rejected up front.
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::ZERO.to_string_format("cc")
+    );
+    // A custom format string this crate doesn't implement (valid in C#, produces
+    // "142.18" via `FormatCustomized`) is also rejected, not silently misformatted.
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::from_ticks(123_456_789_101_112).to_string_format("dd\\.ss")
+    );
+}
+
 /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L770-L788 (`FromDays_TestData`, `FromDays`)
 #[test]
 fn from_days_basic() {
