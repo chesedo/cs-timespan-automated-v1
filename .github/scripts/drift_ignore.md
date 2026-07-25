@@ -20,3 +20,17 @@ formatting behavior unless it affects the small fixed set of locales this
 crate actually documents supporting.
 
 -->
+
+### Broad "add general unit tests" findings
+
+Findings that claim the crate lacks unit test coverage in general terms —
+e.g. "only one doctest exists", "no `#[cfg(test)] mod tests` anywhere",
+or similar broad framing — rather than naming a specific untested
+behavior. This crate's test suite (`tests/time_span.rs`) has grown
+incrementally alongside each ported method via the drift-scan/work-issue
+loop, so a snapshot claim like "X has zero coverage" goes stale within a
+few issue cycles as more specific, narrower test-coverage issues land and
+close first. Don't flag general/aggregate test-coverage gaps; instead let
+the scanner keep filing (and this ignore list keep excluding) only
+findings that name one specific method, operator, or branch that is
+still genuinely untested as of the current `tests/time_span.rs` content.
