@@ -520,9 +520,54 @@ impl FromStr for TimeSpan {
     }
 }
 
-/// Cf. TimeSpan.cs#L855 (invariant `"c"` format)
+/// Only the invariant, culture-independent constant `"c"` format is implemented —
+/// `[-][d.]hh:mm:ss[.fffffff]`, matching `TimeSpanFormat.FormatC`/`TryFormatStandard`
+/// (`StandardFormat.C`). C#'s `ToString(string? format)`/`ToString(format, provider)`,
+/// the `"g"`/`"G"` general formats, char/UTF-8 `TryFormat`, and any `IFormatProvider`
+/// handling remain deferred: their shape depends on more of `TimeSpanFormat.cs` (the
+/// `FormatG`/`FormatCustomized` paths and `DateTimeFormatInfo` plumbing) than this
+/// crate has read yet, so this doesn't guess at a Rust equivalent for those. See the
+/// follow-up issue tracking that remainder.
+///
+/// The days component, when present, is written with no leading-zero padding (C#
+/// writes exactly `FormattingHelpers.CountDigits(days)` digits); the fraction, when
+/// non-zero, is always written with all 7 digits (ticks are 100ns units, so the
+/// fractional-second remainder needs up to 7 digits) — matching `"c"`'s "write out all
+/// 7 digits" behavior, as opposed to `"g"`'s trimmed-trailing-zeros behavior.
+///
+/// `i64::MIN`'s magnitude doesn't fit in `i64` (`-i64::MIN` overflows), so ticks are
+/// widened to `i128` before negating, mirroring `TryFormatStandard`'s explicit
+/// `long.MinValue` special-case.
+///
+/// Cf. TimeSpan.cs#L855 (invariant `"c"` format), TimeSpanFormat.cs (`FormatC`,
+/// `TryFormatStandard` with `StandardFormat.C`)
 impl std::fmt::Display for TimeSpan {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let negative = self.ticks < 0;
+        let abs_ticks: i128 = if negative {
+            -(self.ticks as i128)
+        } else {
+            self.ticks as i128
+        };
+
+        let ticks_per_second = Self::TICKS_PER_SECOND as i128;
+        let fraction = (abs_ticks % ticks_per_second) as u32;
+        let total_seconds = abs_ticks / ticks_per_second;
+
+        let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
+        let (total_hours, minutes) = (total_minutes / 60, total_minutes % 60);
+        let (days, hours) = (total_hours / 24, total_hours % 24);
+
+        if negative {
+            write!(f, "-")?;
+        }
+        if days > 0 {
+            write!(f, "{days}.")?;
+        }
+        write!(f, "{hours:02}:{minutes:02}:{seconds:02}")?;
+        if fraction != 0 {
+            write!(f, ".{fraction:07}")?;
+        }
+        Ok(())
     }
 }

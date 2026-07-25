@@ -944,3 +944,50 @@ fn divide_time_span_method_matches_operator() {
     );
     assert!(TimeSpan::ZERO.divide_time_span(TimeSpan::ZERO).is_nan());
 }
+
+/// `Display` mirrors C#'s parameterless `ToString()`, which delegates to
+/// `TimeSpanFormat.FormatC` — the invariant, culture-independent constant "c" format
+/// `[-][d.]hh:mm:ss[.fffffff]`. Only the constant-format rows of the C# test's
+/// `ToString_TestData` are ported here (the `null`/`"c"`/`"t"`/`"T"` format-string rows,
+/// which C# routes to the same `FormatC` path) — the `"g"`/`"G"` general-format rows and
+/// the culture-aware overloads are out of scope; see the `Display` impl's doc comment.
+///
+/// Cf. TimeSpanTests.cs#L1539-L1591 (`ToString_TestData`, constant-format rows),
+/// TimeSpanTests.cs#L1656-L1666 (`ToString_Valid`)
+#[test]
+fn display_constant_format() {
+    assert_eq!(
+        "142.21:21:18.9101112",
+        TimeSpan::from_ticks(123_456_789_101_112).to_string()
+    );
+    assert_eq!("00:00:00", TimeSpan::ZERO.to_string());
+    assert_eq!("00:00:00.0000001", TimeSpan::from_ticks(1).to_string());
+    assert_eq!("-00:00:00.0000001", TimeSpan::from_ticks(-1).to_string());
+    assert_eq!("10675199.02:48:05.4775807", TimeSpan::MAX.to_string());
+    assert_eq!("-10675199.02:48:05.4775808", TimeSpan::MIN.to_string());
+    assert_eq!("01:02:03", TimeSpan::from_hms(1, 2, 3).unwrap().to_string());
+    assert_eq!(
+        "-01:02:03",
+        (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string()
+    );
+    assert_eq!(
+        "12:34:56",
+        TimeSpan::from_hms(12, 34, 56).unwrap().to_string()
+    );
+    assert_eq!(
+        "13.10:56:23",
+        TimeSpan::from_dhms(12, 34, 56, 23).unwrap().to_string()
+    );
+    assert_eq!(
+        "13.10:56:23.0450000",
+        TimeSpan::from_dhms_milli(12, 34, 56, 23, 45)
+            .unwrap()
+            .to_string()
+    );
+    assert_eq!(
+        "23:59:59.9990000",
+        TimeSpan::from_dhms_milli(0, 23, 59, 59, 999)
+            .unwrap()
+            .to_string()
+    );
+}
