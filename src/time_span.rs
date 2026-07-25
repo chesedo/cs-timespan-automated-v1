@@ -57,6 +57,61 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L233
     pub const MIN: TimeSpan = TimeSpan { ticks: i64::MIN };
 
+    /// Cf. TimeSpan.cs#L216-L217 (internal `MinSeconds`/`MaxSeconds`)
+    const MIN_SECONDS: i64 = i64::MIN / Self::TICKS_PER_SECOND;
+    const MAX_SECONDS: i64 = i64::MAX / Self::TICKS_PER_SECOND;
+
+    /// Cf. TimeSpan.cs#L210-L211 (internal `MinMicroseconds`/`MaxMicroseconds`)
+    const MIN_MICROSECONDS: i64 = i64::MIN / Self::TICKS_PER_MICROSECOND;
+    const MAX_MICROSECONDS: i64 = i64::MAX / Self::TICKS_PER_MICROSECOND;
+
+    /// Sums hours/minutes/seconds into a validated tick count. Widens to `i128`
+    /// while summing so the addition itself can never overflow (unlike the C#
+    /// source, whose comment notes `totalSeconds` is bounded well within 64 bits
+    /// for realistic inputs); the out-of-range check below is what actually
+    /// enforces the representable range, matching `ArgumentOutOfRangeException`.
+    ///
+    /// Cf. TimeSpan.cs#L698-L711 (internal `TimeToTicks`)
+    fn time_to_ticks(hours: i32, minutes: i32, seconds: i32) -> Result<i64, TimeSpanError> {
+        let total_seconds = (hours as i128) * (Self::SECONDS_PER_HOUR as i128)
+            + (minutes as i128) * (Self::SECONDS_PER_MINUTE as i128)
+            + seconds as i128;
+
+        if total_seconds > Self::MAX_SECONDS as i128 || total_seconds < Self::MIN_SECONDS as i128 {
+            return Err(TimeSpanError::Overflow);
+        }
+
+        Ok(total_seconds as i64 * Self::TICKS_PER_SECOND)
+    }
+
+    /// Sums days/hours/minutes/seconds/milliseconds/microseconds into a
+    /// validated tick count. Same `i128` widening rationale as [`Self::time_to_ticks`].
+    ///
+    /// Cf. TimeSpan.cs#L292-L306 (6-arg constructor body)
+    fn dhms_to_ticks(
+        days: i32,
+        hours: i32,
+        minutes: i32,
+        seconds: i32,
+        milliseconds: i32,
+        microseconds: i32,
+    ) -> Result<i64, TimeSpanError> {
+        let total_microseconds = (days as i128) * (Self::MICROSECONDS_PER_DAY as i128)
+            + (hours as i128) * (Self::MICROSECONDS_PER_HOUR as i128)
+            + (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
+            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
+            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
+            + microseconds as i128;
+
+        if total_microseconds > Self::MAX_MICROSECONDS as i128
+            || total_microseconds < Self::MIN_MICROSECONDS as i128
+        {
+            return Err(TimeSpanError::Overflow);
+        }
+
+        Ok(total_microseconds as i64 * Self::TICKS_PER_MICROSECOND)
+    }
+
     /// Constructs a `TimeSpan` directly from a tick count.
     ///
     /// Also covers the C# static factory `FromTicks(long)`, which is defined as an
@@ -160,41 +215,45 @@ impl TimeSpan {
     // iterating on this crate.
 
     /// Cf. TimeSpan.cs#L244-L247
-    pub fn from_hms(_hours: i32, _minutes: i32, _seconds: i32) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_hms(hours: i32, minutes: i32, seconds: i32) -> Result<Self, TimeSpanError> {
+        Ok(Self {
+            ticks: Self::time_to_ticks(hours, minutes, seconds)?,
+        })
     }
 
     /// Cf. TimeSpan.cs#L249-L252
     pub fn from_dhms(
-        _days: i32,
-        _hours: i32,
-        _minutes: i32,
-        _seconds: i32,
+        days: i32,
+        hours: i32,
+        minutes: i32,
+        seconds: i32,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        Self::from_dhms_milli(days, hours, minutes, seconds, 0)
     }
 
     /// Cf. TimeSpan.cs#L254-L273
     pub fn from_dhms_milli(
-        _days: i32,
-        _hours: i32,
-        _minutes: i32,
-        _seconds: i32,
-        _milliseconds: i32,
+        days: i32,
+        hours: i32,
+        minutes: i32,
+        seconds: i32,
+        milliseconds: i32,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        Self::from_dhms_micro(days, hours, minutes, seconds, milliseconds, 0)
     }
 
     /// Cf. TimeSpan.cs#L275-L306
     pub fn from_dhms_micro(
-        _days: i32,
-        _hours: i32,
-        _minutes: i32,
-        _seconds: i32,
-        _milliseconds: i32,
-        _microseconds: i32,
+        days: i32,
+        hours: i32,
+        minutes: i32,
+        seconds: i32,
+        milliseconds: i32,
+        microseconds: i32,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        Ok(Self {
+            ticks: Self::dhms_to_ticks(days, hours, minutes, seconds, milliseconds, microseconds)?,
+        })
     }
 
     /// Cf. TimeSpan.cs#L394 (`static Compare`)
