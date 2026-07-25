@@ -784,10 +784,12 @@ impl TimeSpan {
     /// (TimeSpanParse.cs#L1237-1241), so `AssumeNegative` has no effect on `"c"`/`"t"`/
     /// `"T"`/`"g"`/`"G"`.
     ///
+    /// See [`TimeSpan::parse_exact_multiple`] for the multi-format-string-array overload set
+    /// (`ParseExactMultiple`/`TryParseExactMultiple`) — tries each format in a slice in turn,
+    /// reusing this method's per-format logic.
+    ///
     /// Deferred, and left for follow-up work:
     ///
-    /// - The multi-format-string-array overload set (`ParseExactMultiple`/
-    ///   `TryParseExactMultiple`) — not exposed at all.
     /// - Any `IFormatProvider`/culture handling — this crate has none, anywhere (matching
     ///   `FromStr::from_str`'s invariant-culture-only scope).
     ///
@@ -817,6 +819,58 @@ impl TimeSpan {
         styles: TimeSpanStyles,
     ) -> Result<Self, TimeSpanError> {
         crate::time_span_parse_exact::parse_exact(input, format, styles)
+    }
+
+    /// Tries each format string in `formats`, in order, against `input`, returning the
+    /// result of the first one that matches. Mirrors C#'s `ParseExact(string, string[],
+    /// IFormatProvider?)` / `ParseExact(string, string[], IFormatProvider?, TimeSpanStyles)`
+    /// / `TryParseExact(string, string[], IFormatProvider?, out TimeSpan)` /
+    /// `TryParseExact(string, string[], IFormatProvider?, TimeSpanStyles, out TimeSpan)` —
+    /// collapsed into one `Result`-returning method for the same reason
+    /// [`TimeSpan::parse_exact`] is (see its doc comment).
+    ///
+    /// Each format string may be any of the forms [`TimeSpan::parse_exact`] accepts (the
+    /// five single-letter standard formats or the custom-format-string mini-language);
+    /// `styles` applies to every attempt exactly as it does for a single `parse_exact` call.
+    ///
+    /// Notable edge cases, matching upstream:
+    ///
+    /// - An empty `formats` slice is itself a bad-format failure
+    ///   ([`TimeSpanError::InvalidFormat`]), distinct from any individual format being bad.
+    ///   (C#'s `formats == null` case has no `&str` equivalent here — a `&[&str]` can't be
+    ///   null.)
+    /// - An empty individual format string anywhere in `formats` is a bad-format-specifier
+    ///   failure *immediately* — the loop stops right there rather than skipping that entry
+    ///   in favor of a later one that might otherwise have matched.
+    /// - Each attempt is independent: a failure on format `N` — including an overflow that
+    ///   would be reported as [`TimeSpanError::Overflow`] from a standalone
+    ///   [`TimeSpan::parse_exact`] call — never leaks into the attempt on format `N+1`, and
+    ///   is never itself returned; if every format in the slice fails, the result is always
+    ///   the generic [`TimeSpanError::InvalidFormat`], regardless of why any individual
+    ///   attempt failed.
+    ///
+    /// Cf. `TimeSpanParse.cs`'s `TryParseExactMultipleTimeSpan`
+    /// (TimeSpanParse.cs#L1662-1703)
+    ///
+    /// ```
+    /// use cs_timespan_automated_v1::{TimeSpan, TimeSpanStyles};
+    ///
+    /// // "hh\:mm\:ss" doesn't match "3" (no digits/colon shape to match), so the array
+    /// // falls through to "%h", which does.
+    /// let ts = TimeSpan::parse_exact_multiple(
+    ///     "3",
+    ///     &[r"hh\:mm\:ss", "%h"],
+    ///     TimeSpanStyles::None,
+    /// )
+    /// .unwrap();
+    /// assert_eq!(ts, TimeSpan::from_hms(3, 0, 0).unwrap());
+    /// ```
+    pub fn parse_exact_multiple(
+        input: &str,
+        formats: &[&str],
+        styles: TimeSpanStyles,
+    ) -> Result<Self, TimeSpanError> {
+        crate::time_span_parse_exact::parse_exact_multiple(input, formats, styles)
     }
 
     /// Formats `self` into `destination` using the given standard format string,

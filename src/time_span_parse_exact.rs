@@ -20,9 +20,13 @@
 //! shape. The two paths do share `TryTimeToTicks` (`time_span_parse::time_to_ticks`) for the
 //! final bounds-checked tick computation.
 //!
-//! Deferred (see `TimeSpan::parse_exact`'s doc comment for the full list): the
-//! multi-format-string-array overload set (`ParseExactMultiple`/`TryParseExactMultiple`) and
-//! all `IFormatProvider`/culture handling.
+//! `TimeSpan::parse_exact_multiple` (the multi-format-string-array overload set —
+//! `ParseExactMultiple`/`TryParseExactMultiple`) also lives here: it's a thin driver over
+//! this module's own `parse_exact`, ported from `TryParseExactMultipleTimeSpan`
+//! (TimeSpanParse.cs#L1662-1703).
+//!
+//! Deferred (see `TimeSpan::parse_exact`'s doc comment for the full list): all
+//! `IFormatProvider`/culture handling.
 
 use crate::time_span::TimeSpanStyles;
 use crate::time_span_parse::{NumTok, time_to_ticks};
@@ -397,4 +401,43 @@ pub(crate) fn parse_exact(
     };
 
     Ok(TimeSpan::from_ticks(ticks))
+}
+
+/// Tries each format in `formats` against `input` in order, returning the first successful
+/// parse. See `TimeSpan::parse_exact_multiple`'s doc comment for the full scope.
+///
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703)
+pub(crate) fn parse_exact_multiple(
+    input: &str,
+    formats: &[&str],
+    styles: TimeSpanStyles,
+) -> Result<TimeSpan, TimeSpanError> {
+    // Cf. TimeSpanParse.cs#L1670-1673: `formats == null` has no `&str` equivalent (a
+    // `&[&str]` can't be null), so only the `formats.Length == 0` half of upstream's two
+    // upfront checks applies here — a bad-format failure distinct from any individual
+    // format being bad (TimeSpanParse.cs#L1675-1676, `SetNoFormatSpecifierFailure`).
+    if formats.is_empty() {
+        return Err(TimeSpanError::InvalidFormat);
+    }
+
+    // Cf. TimeSpanParse.cs#L1680-1696: each attempt uses a fresh, independent, non-throwing
+    // result (`throwOnFailure: false`), so a failure on format `N` — including an
+    // `OverflowException` from a valid-but-out-of-range match — never leaks into the attempt
+    // on format `N+1`, and never surfaces past the loop either: only the generic
+    // `SetBadTimeSpanFailure` bad-format failure below does, once every format has failed.
+    for &format in formats {
+        // Cf. TimeSpanParse.cs#L1684-1687: `string.IsNullOrEmpty(format)` is an immediate
+        // bad-format-specifier failure — unlike every other failure in this loop, it returns
+        // right away rather than falling through to try the next format.
+        if format.is_empty() {
+            return Err(TimeSpanError::InvalidFormat);
+        }
+
+        if let Ok(ts) = parse_exact(input, format, styles) {
+            return Ok(ts);
+        }
+    }
+
+    // Cf. TimeSpanParse.cs#L1698: every format failed.
+    Err(TimeSpanError::InvalidFormat)
 }
