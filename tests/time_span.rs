@@ -963,18 +963,9 @@ fn display_constant_format() {
     assert_eq!("00:00:00", TimeSpan::ZERO.to_string());
     assert_eq!("00:00:00.0000001", TimeSpan::from_ticks(1).to_string());
     assert_eq!("-00:00:00.0000001", TimeSpan::from_ticks(-1).to_string());
-    assert_eq!(
-        "10675199.02:48:05.4775807",
-        TimeSpan::MAX.to_string()
-    );
-    assert_eq!(
-        "-10675199.02:48:05.4775808",
-        TimeSpan::MIN.to_string()
-    );
-    assert_eq!(
-        "01:02:03",
-        TimeSpan::from_hms(1, 2, 3).unwrap().to_string()
-    );
+    assert_eq!("10675199.02:48:05.4775807", TimeSpan::MAX.to_string());
+    assert_eq!("-10675199.02:48:05.4775808", TimeSpan::MIN.to_string());
+    assert_eq!("01:02:03", TimeSpan::from_hms(1, 2, 3).unwrap().to_string());
     assert_eq!(
         "-01:02:03",
         (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string()
