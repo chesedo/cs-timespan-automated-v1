@@ -257,13 +257,13 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L394 (`static Compare`)
-    pub fn compare(_t1: Self, _t2: Self) -> Ordering {
-        todo!()
+    pub fn compare(t1: Self, t2: Self) -> Ordering {
+        t1.cmp(&t2)
     }
 
     /// Cf. TimeSpan.cs#L429 (`static Equals`)
-    pub fn equals(_t1: Self, _t2: Self) -> bool {
-        todo!()
+    pub fn equals(t1: Self, t2: Self) -> bool {
+        t1 == t2
     }
 
     /// Performs real tick addition, only reporting [`TimeSpanError::Overflow`] when
