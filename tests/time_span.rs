@@ -995,6 +995,167 @@ fn parse_exact_invalid() {
     }
 }
 
+/// Cf. TimeSpanTests.cs#L1163-L1168 (`ParseExact_Valid_TestData`'s `"c"`/`"t"`/`"T"` rows —
+/// all three characters dispatch to the exact same `TryParseTimeSpanConstant` algorithm
+/// upstream, TimeSpanParse.cs#L1237-1239, hence looping over all three here too).
+#[test]
+fn parse_exact_standard_constant_valid() {
+    let cases: [(&str, TimeSpan); 3] = [
+        ("12:24:02", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("1.12:24:02", TimeSpan::from_dhms(1, 12, 24, 2).unwrap()),
+        (
+            "-01.07:45:16.999",
+            -TimeSpan::from_dhms_milli(1, 7, 45, 16, 999).unwrap(),
+        ),
+    ];
+
+    for format in ["c", "t", "T"] {
+        for (input, expected) in cases {
+            assert_eq!(
+                Ok(expected),
+                TimeSpan::parse_exact(input, format, TimeSpanStyles::None),
+                "parsing {input:?} against format {format:?}"
+            );
+        }
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1170-L1183 (`ParseExact_Valid_TestData`'s `"g"` rows).
+#[test]
+fn parse_exact_standard_g_valid() {
+    let cases: [(&str, TimeSpan); 13] = [
+        ("12", TimeSpan::from_dhms(12, 0, 0, 0).unwrap()),
+        ("-12", -TimeSpan::from_dhms(12, 0, 0, 0).unwrap()),
+        ("12:34", TimeSpan::from_hms(12, 34, 0).unwrap()),
+        ("-12:34", -TimeSpan::from_hms(12, 34, 0).unwrap()),
+        (
+            "1:2:.3",
+            TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap(),
+        ),
+        (
+            "-1:2:.3",
+            -TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap(),
+        ),
+        ("12:24:02", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        (
+            "12:24:02.123",
+            TimeSpan::from_dhms_milli(0, 12, 24, 2, 123).unwrap(),
+        ),
+        (
+            "-12:24:02.123",
+            -TimeSpan::from_dhms_milli(0, 12, 24, 2, 123).unwrap(),
+        ),
+        (
+            "1:2:3:.4",
+            TimeSpan::from_dhms_milli(1, 2, 3, 0, 400).unwrap(),
+        ),
+        (
+            "-1:2:3:.4",
+            -TimeSpan::from_dhms_milli(1, 2, 3, 0, 400).unwrap(),
+        ),
+        ("1:12:24:02", TimeSpan::from_dhms(1, 12, 24, 2).unwrap()),
+        (
+            "-01:07:45:16.999",
+            -TimeSpan::from_dhms_milli(1, 7, 45, 16, 999).unwrap(),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        assert_eq!(
+            Ok(expected),
+            TimeSpan::parse_exact(input, "g", TimeSpanStyles::None),
+            "parsing {input:?} against format \"g\""
+        );
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1185-L1188 (`ParseExact_Valid_TestData`'s `"G"` rows).
+#[test]
+fn parse_exact_standard_g_long_valid() {
+    let cases: [(&str, TimeSpan); 2] = [
+        (
+            "1:12:24:02.243",
+            TimeSpan::from_dhms_milli(1, 12, 24, 2, 243).unwrap(),
+        ),
+        (
+            "-01:07:45:16.999",
+            -TimeSpan::from_dhms_milli(1, 7, 45, 16, 999).unwrap(),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        assert_eq!(
+            Ok(expected),
+            TimeSpan::parse_exact(input, "G", TimeSpanStyles::None),
+            "parsing {input:?} against format \"G\""
+        );
+    }
+}
+
+/// `TimeSpanStyles` is interpreted only for custom formats, not the five standard
+/// single-letter ones — C#'s dispatch (TimeSpanParse.cs#L1231-1241) never passes `styles`
+/// into `TryParseTimeSpanConstant`/`TryParseTimeSpan` for `'c'`/`'t'`/`'T'`/`'g'`/`'G'`, so
+/// `AssumeNegative` has no effect on them (cf. `TimeSpanTests.cs`'s `ParseExact` test,
+/// which skips the `AssumeNegative` assertions entirely for these five formats,
+/// TimeSpanTests.cs#L1225-1229).
+#[test]
+fn parse_exact_standard_ignores_styles() {
+    // "G" only accepts the full "d:h:m:s.f" shape, unlike the other four, so it needs its
+    // own representative input rather than sharing "12:24:02" with the rest.
+    let cases: [(&str, &str, TimeSpan); 5] = [
+        ("12:24:02", "c", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "t", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "T", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "g", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        (
+            "1:12:24:02.243",
+            "G",
+            TimeSpan::from_dhms_milli(1, 12, 24, 2, 243).unwrap(),
+        ),
+    ];
+
+    for (input, format, expected) in cases {
+        assert_eq!(
+            Ok(expected),
+            TimeSpan::parse_exact(input, format, TimeSpanStyles::AssumeNegative),
+            "format {format:?} should ignore AssumeNegative"
+        );
+    }
+}
+
+/// Cf. TimeSpanTests.cs#L1252-L1274 (`ParseExact_Invalid_TestData`'s format-agnostic rows
+/// plus the standard single-letter-format rows), restricted to rows usable without a
+/// `null` `string` (no `&str` equivalent).
+#[test]
+fn parse_exact_standard_invalid() {
+    let cases: [(&str, &str, TimeSpanError); 16] = [
+        ("", "c", TimeSpanError::InvalidFormat),
+        ("-", "c", TimeSpanError::InvalidFormat),
+        ("garbage", "c", TimeSpanError::InvalidFormat),
+        ("24:24:02", "c", TimeSpanError::Overflow),
+        ("1:60:02", "c", TimeSpanError::Overflow),
+        ("1:59:60", "c", TimeSpanError::Overflow),
+        ("1.24:59:02", "c", TimeSpanError::Overflow),
+        ("1.2:60:02", "c", TimeSpanError::Overflow),
+        ("1?59:02", "c", TimeSpanError::InvalidFormat),
+        ("1:59?02", "c", TimeSpanError::InvalidFormat),
+        ("1:59:02?123", "c", TimeSpanError::InvalidFormat),
+        ("1:12:24:02", "c", TimeSpanError::InvalidFormat),
+        ("12:61:02", "g", TimeSpanError::Overflow),
+        ("1.12:24:02", "g", TimeSpanError::InvalidFormat),
+        ("1:07:45:16.99999999", "G", TimeSpanError::Overflow),
+        ("1:12:24:02", "G", TimeSpanError::InvalidFormat),
+    ];
+
+    for (input, format, expected_err) in cases {
+        assert_eq!(
+            Err(expected_err),
+            TimeSpan::parse_exact(input, format, TimeSpanStyles::None),
+            "parsing {input:?} against format {format:?}"
+        );
+    }
+}
+
 /// `checked_neg` mirrors C#'s instance `Negate()`, which delegates to `operator-`
 /// (TimeSpan.cs#L683, #L868-L875).
 ///
