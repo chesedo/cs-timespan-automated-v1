@@ -340,8 +340,8 @@ impl TimeSpan {
     /// legitimately produce `f64::INFINITY`/`NAN` rather than erroring.
     ///
     /// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
-    pub fn divide_time_span(self, _rhs: Self) -> f64 {
-        todo!()
+    pub fn divide_time_span(self, rhs: Self) -> f64 {
+        self.ticks as f64 / rhs.ticks as f64
     }
 
     /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L455
@@ -497,8 +497,8 @@ impl std::ops::Div<f64> for TimeSpan {
 impl std::ops::Div<TimeSpan> for TimeSpan {
     type Output = f64;
 
-    fn div(self, _rhs: TimeSpan) -> Self::Output {
-        todo!()
+    fn div(self, rhs: TimeSpan) -> Self::Output {
+        self.divide_time_span(rhs)
     }
 }
 
