@@ -207,14 +207,41 @@ impl TimeSpan {
         todo!()
     }
 
-    /// Cf. TimeSpan.cs#L389 (instance `Add`)
-    pub fn checked_add(self, _rhs: Self) -> Result<Self, TimeSpanError> {
-        todo!()
+    /// Performs real tick addition, only reporting [`TimeSpanError::Overflow`] when
+    /// the two's-complement sign-bit check used by C#'s `operator+` detects genuine
+    /// overflow (identical operand signs, opposite result sign) — e.g.
+    /// `TimeSpan::MAX.checked_add(TimeSpan::from_ticks(1))` errors, but
+    /// `TimeSpan::MAX.checked_add(TimeSpan::MIN)` correctly returns `-1` tick.
+    ///
+    /// Cf. TimeSpan.cs#L389 (instance `Add`), TimeSpan.cs#L893-L905 (`operator+`)
+    pub fn checked_add(self, rhs: Self) -> Result<Self, TimeSpanError> {
+        let result = self.ticks.wrapping_add(rhs.ticks);
+        let t1_sign = self.ticks >> 63;
+        let t2_sign = rhs.ticks >> 63;
+        let result_sign = result >> 63;
+
+        if (t1_sign == t2_sign) && (t1_sign != result_sign) {
+            return Err(TimeSpanError::Overflow);
+        }
+        Ok(TimeSpan { ticks: result })
     }
 
-    /// Cf. TimeSpan.cs#L687 (instance `Subtract`)
-    pub fn checked_sub(self, _rhs: Self) -> Result<Self, TimeSpanError> {
-        todo!()
+    /// Performs real tick subtraction, only reporting [`TimeSpanError::Overflow`]
+    /// when the two's-complement sign-bit check used by C#'s `operator-` detects
+    /// genuine overflow (different operand signs, result sign opposite the
+    /// minuend's).
+    ///
+    /// Cf. TimeSpan.cs#L687 (instance `Subtract`), TimeSpan.cs#L877-L889 (`operator-`)
+    pub fn checked_sub(self, rhs: Self) -> Result<Self, TimeSpanError> {
+        let result = self.ticks.wrapping_sub(rhs.ticks);
+        let t1_sign = self.ticks >> 63;
+        let t2_sign = rhs.ticks >> 63;
+        let result_sign = result >> 63;
+
+        if (t1_sign != t2_sign) && (t1_sign != result_sign) {
+            return Err(TimeSpanError::Overflow);
+        }
+        Ok(TimeSpan { ticks: result })
     }
 
     /// Cf. TimeSpan.cs#L683 (instance `Negate`)
@@ -337,21 +364,29 @@ impl std::ops::Neg for TimeSpan {
     }
 }
 
+/// Built on [`TimeSpan::checked_sub`]. Rust's `Sub` trait can't return a `Result`,
+/// so overflow panics here, mirroring C#'s `OverflowException` from `operator-`.
+///
 /// Cf. TimeSpan.cs#L877-L889
 impl std::ops::Sub for TimeSpan {
     type Output = Self;
 
-    fn sub(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.checked_sub(rhs)
+            .expect("TimeSpan subtraction overflowed its representable range")
     }
 }
 
+/// Built on [`TimeSpan::checked_add`]. Rust's `Add` trait can't return a `Result`,
+/// so overflow panics here, mirroring C#'s `OverflowException` from `operator+`.
+///
 /// Cf. TimeSpan.cs#L893-L905
 impl std::ops::Add for TimeSpan {
     type Output = Self;
 
-    fn add(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn add(self, rhs: Self) -> Self::Output {
+        self.checked_add(rhs)
+            .expect("TimeSpan addition overflowed its representable range")
     }
 }
 
