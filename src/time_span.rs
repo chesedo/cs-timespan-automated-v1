@@ -614,8 +614,8 @@ impl TimeSpan {
         Self::interval(value, Self::TICKS_PER_MICROSECOND as f64)
     }
 
-    /// Formats `self` using the given standard format string, mirroring C#'s
-    /// `ToString(string? format)` for the invariant-culture standard formats only.
+    /// Formats `self` using the given standard or custom format string, mirroring C#'s
+    /// `ToString(string? format)` for invariant-culture formats.
     ///
     /// Supports the same single-character standard specifiers as C#'s
     /// `TimeSpanFormat.Format`: an empty string, `"c"`, `"t"`, and `"T"` all produce the
@@ -623,22 +623,40 @@ impl TimeSpan {
     /// produces the general short format (variable-width hours, day segment omitted
     /// when zero, fraction shown only when non-zero with trailing zeros trimmed); `"G"`
     /// produces the general long format (always two-digit hours, day segment always
-    /// present, fraction always shown at full 7-digit width).
+    /// present, fraction always shown at full 7-digit width). Any other single
+    /// character is invalid: C#'s `Format`/`TryFormat` dispatch format strings of
+    /// length 1 through this same special case, *before* ever reaching the custom
+    /// tokenizer below — so a length-1 format string can never be interpreted as a
+    /// custom-format token (e.g. `"d"` alone is invalid, even though `"dd"` is a valid
+    /// custom day token).
     ///
-    /// Any other single character, or any format string of length != 1 (including
-    /// otherwise-valid C# custom format strings like `"dd\\.ss"`), returns
+    /// Any format string of length != 1 is run through the custom-format-string
+    /// mini-language (`TimeSpanFormat.FormatCustomized`): `%d`/`dd`...`dddddddd` (day,
+    /// 1-8 digits), `%h`/`hh` (hour), `%m`/`mm` (minute), `%s`/`ss` (second), `%f`/
+    /// `ff`...`fffffff` (fraction, truncated to N digits, always shown), `%F`/`FF`...
+    /// `FFFFFFF` (fraction, trailing zeros dropped, omitted entirely if the trimmed
+    /// value is empty), literal text via `\`-escaping and `'...'`/`"..."` quoting, and
+    /// `%` as an escape-next-char marker equivalent to a 1-length token. Unlike the
+    /// standard formats above, a custom format string never writes a sign character —
+    /// there's no token for it — so a negative `TimeSpan` formats identically to its
+    /// positive magnitude (a real upstream quirk, not a bug this port introduces).
+    ///
+    /// A syntactically invalid custom format string (unterminated quote, a `d`/`f`/`F`
+    /// run past its maximum length, an `h`/`m`/`s` run longer than 2, trailing `%` or
+    /// `\`, `"%%"`, or an unquoted/unescaped literal character) returns
     /// [`TimeSpanError::InvalidFormat`] rather than panicking, mirroring C#'s
-    /// `FormatException` — this crate doesn't implement `TimeSpanFormat.FormatCustomized`
-    /// (the custom-format-string tokenizer) yet. See the follow-up issue tracking that
-    /// remainder.
+    /// `FormatException`.
     ///
     /// `IFormatProvider`/culture handling is out of scope: like `"c"`, `"g"`/`"G"`'s
     /// decimal separator is hardcoded to `.` (the invariant-culture value) rather than
     /// varying by culture, matching this crate having no culture/locale support
-    /// anywhere else.
+    /// anywhere else. Custom format strings have no built-in fraction-separator token
+    /// (callers spell out `"."` themselves, e.g. `"dd\\.ss"`), so this doesn't apply to
+    /// the custom-format branch in the same way.
     ///
     /// Cf. TimeSpanFormat.cs#L19-L48 (`Format`), TimeSpanFormat.cs#L91-L100 (`FormatG`),
-    /// TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`)
+    /// TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`), TimeSpanFormat.cs#L296-455
+    /// (`FormatCustomized`)
     ///
     /// ```
     /// use cs_timespan_automated_v1::TimeSpan;
@@ -647,6 +665,7 @@ impl TimeSpan {
     /// assert_eq!(ts.to_string_format("c").unwrap(), ts.to_string());
     /// assert_eq!(ts.to_string_format("g").unwrap(), "1:02:03");
     /// assert_eq!(ts.to_string_format("G").unwrap(), "0:01:02:03.0000000");
+    /// assert_eq!(ts.to_string_format("hh\\:mm\\:ss").unwrap(), "01:02:03");
     /// ```
     pub fn to_string_format(&self, format: &str) -> Result<String, TimeSpanError> {
         let mut chars = format.chars();
@@ -658,7 +677,8 @@ impl TimeSpan {
             (Some('c' | 't' | 'T'), None) => Ok(self.to_string()),
             (Some('g'), None) => Ok(self.format_general(false)),
             (Some('G'), None) => Ok(self.format_general(true)),
-            _ => Err(TimeSpanError::InvalidFormat),
+            (Some(_), None) => Err(TimeSpanError::InvalidFormat),
+            _ => crate::time_span_format_custom::format_customized(*self, format),
         }
     }
 
