@@ -11,9 +11,10 @@ use std::fmt;
 ///   valid `TimeSpan`.
 /// - [`TimeSpanError::NotANumber`] covers `ArgumentException` raised when a `f64`
 ///   argument is NaN.
-/// - [`TimeSpanError::InvalidFormat`] covers `FormatException` from parsing; kept as a
-///   bare variant until a `work-issue` implements `Parse`/`ParseExact` and needs to say
-///   more about what was invalid.
+/// - [`TimeSpanError::InvalidFormat`] covers `FormatException` from parsing and from
+///   [`crate::TimeSpan::to_string_format`]'s format-string validation; kept as a bare
+///   variant until a `work-issue` implementing more of `Parse`/`ParseExact`/
+///   `ToString(format)` needs to say more about what was invalid.
 ///
 /// Two C# failure modes have no Rust equivalent at all: `CompareTo(object)`'s
 /// "must be TimeSpan" `ArgumentException` (Rust has no dynamically-typed `object`

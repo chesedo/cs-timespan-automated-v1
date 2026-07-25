@@ -583,6 +583,125 @@ impl TimeSpan {
     pub fn from_microseconds(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_MICROSECOND as f64)
     }
+
+    /// Formats `self` using the given standard format string, mirroring C#'s
+    /// `ToString(string? format)` for the invariant-culture standard formats only.
+    ///
+    /// Supports the same single-character standard specifiers as C#'s
+    /// `TimeSpanFormat.Format`: an empty string, `"c"`, `"t"`, and `"T"` all produce the
+    /// same output as [`Display`](std::fmt::Display) (the constant `"c"` format); `"g"`
+    /// produces the general short format (variable-width hours, day segment omitted
+    /// when zero, fraction shown only when non-zero with trailing zeros trimmed); `"G"`
+    /// produces the general long format (always two-digit hours, day segment always
+    /// present, fraction always shown at full 7-digit width).
+    ///
+    /// Any other single character, or any format string of length != 1 (including
+    /// otherwise-valid C# custom format strings like `"dd\\.ss"`), returns
+    /// [`TimeSpanError::InvalidFormat`] rather than panicking, mirroring C#'s
+    /// `FormatException` — this crate doesn't implement `TimeSpanFormat.FormatCustomized`
+    /// (the custom-format-string tokenizer) yet. See the follow-up issue tracking that
+    /// remainder.
+    ///
+    /// `IFormatProvider`/culture handling is out of scope: like `"c"`, `"g"`/`"G"`'s
+    /// decimal separator is hardcoded to `.` (the invariant-culture value) rather than
+    /// varying by culture, matching this crate having no culture/locale support
+    /// anywhere else.
+    ///
+    /// Cf. TimeSpanFormat.cs#L19-L48 (`Format`), TimeSpanFormat.cs#L91-L100 (`FormatG`),
+    /// TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`)
+    ///
+    /// ```
+    /// use cs_timespan_automated_v1::TimeSpan;
+    ///
+    /// let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
+    /// assert_eq!(ts.to_string_format("c").unwrap(), ts.to_string());
+    /// assert_eq!(ts.to_string_format("g").unwrap(), "1:02:03");
+    /// assert_eq!(ts.to_string_format("G").unwrap(), "0:01:02:03.0000000");
+    /// ```
+    pub fn to_string_format(&self, format: &str) -> Result<String, TimeSpanError> {
+        let mut chars = format.chars();
+        let first = chars.next();
+        let second = chars.next();
+
+        match (first, second) {
+            (None, None) => Ok(self.to_string()),
+            (Some('c' | 't' | 'T'), None) => Ok(self.to_string()),
+            (Some('g'), None) => Ok(self.format_general(false)),
+            (Some('G'), None) => Ok(self.format_general(true)),
+            _ => Err(TimeSpanError::InvalidFormat),
+        }
+    }
+
+    /// Shared implementation for the general short (`"g"`) and general long (`"G"`)
+    /// standard formats. `long` selects `"G"`'s always-two-digit-hours/always-present-
+    /// day/always-full-fraction behavior over `"g"`'s variable-width/trimmed behavior.
+    ///
+    /// Same `i128`-widening rationale as the [`Display`](std::fmt::Display) impl for
+    /// handling `TimeSpan::MIN` without overflow.
+    ///
+    /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.g`/`.G`
+    /// branches)
+    fn format_general(&self, long: bool) -> String {
+        let negative = self.ticks < 0;
+        let abs_ticks: i128 = if negative {
+            -(self.ticks as i128)
+        } else {
+            self.ticks as i128
+        };
+
+        let ticks_per_second = Self::TICKS_PER_SECOND as i128;
+        let fraction = (abs_ticks % ticks_per_second) as u32;
+        let total_seconds = abs_ticks / ticks_per_second;
+
+        let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
+        let (total_hours, minutes) = (total_minutes / 60, total_minutes % 60);
+        let (days, hours) = (total_hours / 24, total_hours % 24);
+
+        let mut out = String::new();
+        if negative {
+            out.push('-');
+        }
+
+        if days > 0 {
+            out.push_str(&format!("{days}:"));
+        } else if long {
+            out.push_str("0:");
+        }
+
+        if !long && hours < 10 {
+            out.push_str(&hours.to_string());
+        } else {
+            out.push_str(&format!("{hours:02}"));
+        }
+        out.push_str(&format!(":{minutes:02}:{seconds:02}"));
+
+        if long {
+            out.push_str(&format!(".{fraction:07}"));
+        } else if fraction != 0 {
+            let (value, digits) = Self::trim_fraction_trailing_zeros(fraction);
+            out.push_str(&format!(".{value:0width$}", width = digits as usize));
+        }
+
+        out
+    }
+
+    /// Trims trailing zeros from a 7-digit tick fraction (`0..=9_999_999`), returning
+    /// the trimmed value and how many digits it should be zero-padded to when
+    /// printed — matching `"g"`'s "write out only the most significant digits"
+    /// behavior. Only called when `fraction != 0`.
+    ///
+    /// Cf. TimeSpanFormat.cs#L166-L174 (`StandardFormat.g` branch's
+    /// `FormattingHelpers.CountDecimalTrailingZeros` call)
+    fn trim_fraction_trailing_zeros(fraction: u32) -> (u32, u32) {
+        debug_assert!(fraction != 0 && fraction < 10_000_000);
+        let mut value = fraction;
+        let mut digits = 7u32;
+        while value.is_multiple_of(10) {
+            value /= 10;
+            digits -= 1;
+        }
+        (value, digits)
+    }
 }
 
 /// Built on [`TimeSpan::checked_neg`]. Rust's `Neg` trait can't return a `Result`,
@@ -664,10 +783,12 @@ impl std::ops::Div<TimeSpan> for TimeSpan {
 /// `time_span_parse.rs` for the algorithm (ported from `TimeSpanParse.cs`).
 ///
 /// C#'s `IFormatProvider`-aware overloads and the custom-format-string
-/// `ParseExact`/`TryParseExact`/`ToString(format)`/`TryFormat` family remain deferred:
-/// their shape depends on more of `TimeSpanParse.cs`/`TimeSpanFormat.cs` than the
-/// invariant standard-format grammar this impl covers, so this doesn't guess at a Rust
-/// equivalent for custom-format-string/culture handling.
+/// `ParseExact`/`TryParseExact`/`TryFormat` family remain deferred: their shape depends
+/// on more of `TimeSpanParse.cs`/`TimeSpanFormat.cs` than the invariant standard-format
+/// grammar this impl covers, so this doesn't guess at a Rust equivalent for
+/// custom-format-string/culture handling. (`ToString(string? format)`'s standard `"g"`/
+/// `"G"` formats are covered by [`TimeSpan::to_string_format`]; its custom-format-string
+/// branch is not.)
 ///
 /// Cf. TimeSpan.cs#L722-L727
 ///
@@ -688,14 +809,13 @@ impl FromStr for TimeSpan {
     }
 }
 
-/// Only the invariant, culture-independent constant `"c"` format is implemented —
+/// The invariant, culture-independent constant `"c"` format —
 /// `[-][d.]hh:mm:ss[.fffffff]`, matching `TimeSpanFormat.FormatC`/`TryFormatStandard`
-/// (`StandardFormat.C`). C#'s `ToString(string? format)`/`ToString(format, provider)`,
-/// the `"g"`/`"G"` general formats, char/UTF-8 `TryFormat`, and any `IFormatProvider`
-/// handling remain deferred: their shape depends on more of `TimeSpanFormat.cs` (the
-/// `FormatG`/`FormatCustomized` paths and `DateTimeFormatInfo` plumbing) than this
-/// crate has read yet, so this doesn't guess at a Rust equivalent for those. See the
-/// follow-up issue tracking that remainder.
+/// (`StandardFormat.C`); C#'s parameterless `ToString()` delegates to the same format.
+/// See [`TimeSpan::to_string_format`] for the `"g"`/`"G"` general-format equivalents of
+/// `ToString(string? format)`. Custom format strings (`TimeSpanFormat.FormatCustomized`),
+/// char/UTF-8 `TryFormat`, and any `IFormatProvider` handling remain deferred — see the
+/// follow-up issues tracking that remainder.
 ///
 /// The days component, when present, is written with no leading-zero padding (C#
 /// writes exactly `FormattingHelpers.CountDigits(days)` digits); the fraction, when

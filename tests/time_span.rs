@@ -1304,7 +1304,10 @@ fn to_string_format_general_short() {
         Ok("142:21:21:18.9101112".to_string()),
         TimeSpan::from_ticks(123_456_789_101_112).to_string_format("g")
     );
-    assert_eq!(Ok("0:00:00".to_string()), TimeSpan::ZERO.to_string_format("g"));
+    assert_eq!(
+        Ok("0:00:00".to_string()),
+        TimeSpan::ZERO.to_string_format("g")
+    );
     assert_eq!(
         Ok("0:00:00.0000001".to_string()),
         TimeSpan::from_ticks(1).to_string_format("g")
@@ -1331,7 +1334,9 @@ fn to_string_format_general_short() {
     );
     assert_eq!(
         Ok("12:34:56".to_string()),
-        TimeSpan::from_hms(12, 34, 56).unwrap().to_string_format("g")
+        TimeSpan::from_hms(12, 34, 56)
+            .unwrap()
+            .to_string_format("g")
     );
     assert_eq!(
         Ok("13:10:56:23".to_string()),
@@ -1396,7 +1401,9 @@ fn to_string_format_general_long() {
     );
     assert_eq!(
         Ok("0:12:34:56.0000000".to_string()),
-        TimeSpan::from_hms(12, 34, 56).unwrap().to_string_format("G")
+        TimeSpan::from_hms(12, 34, 56)
+            .unwrap()
+            .to_string_format("G")
     );
     assert_eq!(
         Ok("13:10:56:23.0000000".to_string()),
