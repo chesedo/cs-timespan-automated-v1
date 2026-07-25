@@ -4,9 +4,12 @@
 //! (`src/libraries/System.Private.CoreLib/src/System/Globalization/TimeSpanParse.cs`):
 //! tokenizing into numbers/separators (`TimeSpanTokenizer`), then matching the
 //! resulting shape against the "d.h:m:s.f" grammar (`ProcessTerminalState` and its
-//! `ProcessTerminal_*` helpers). `ParseExact`/`TryParseExact`/custom format strings and
-//! `IFormatProvider`/culture-aware parsing are out of scope; see the `FromStr` impl's
-//! doc comment in `time_span.rs`.
+//! `ProcessTerminal_*` helpers). The custom-format-string half (`TryParseByFormat`) lives
+//! in `time_span_parse_exact.rs` instead — a different, char-level tokenizer entirely; see
+//! that module's doc comment. `IFormatProvider`/culture-aware parsing and the single-letter
+//! standard formats (`"c"`/`"t"`/`"T"`/`"g"`/`"G"`) accepted by `ParseExact` remain out of
+//! scope everywhere in this crate; see the `FromStr` impl's doc comment in `time_span.rs`
+//! and `TimeSpan::parse_exact`'s doc comment.
 
 use crate::{TimeSpan, TimeSpanError};
 
@@ -58,14 +61,20 @@ fn is_day_hour_sep(sep: &str) -> bool {
 /// determines the tick scale).
 ///
 /// Cf. TimeSpanParse.cs's `TimeSpanToken` (TimeSpanParse.cs#L86-105)
+///
+/// `pub(crate)` (rather than private to this module): `time_span_parse_exact.rs`'s
+/// custom-format-string tokenizer reuses this type plus [`time_to_ticks`] directly, so the
+/// tick-bounds/fraction-normalization arithmetic (`TryTimeToTicks`) has exactly one Rust
+/// implementation shared by both the standard-format and custom-format parsing paths, the
+/// same way upstream shares a single `TryTimeToTicks` between them.
 #[derive(Clone, Copy)]
-struct NumTok {
-    value: i64,
-    zeroes: u32,
+pub(crate) struct NumTok {
+    pub(crate) value: i64,
+    pub(crate) zeroes: u32,
 }
 
 impl NumTok {
-    const ZERO: NumTok = NumTok {
+    pub(crate) const ZERO: NumTok = NumTok {
         value: 0,
         zeroes: 0,
     };
@@ -501,7 +510,9 @@ fn process_dhmsf(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> 
 }
 
 /// Cf. TryTimeToTicks (TimeSpanParse.cs#L595-625)
-fn time_to_ticks(
+///
+/// `pub(crate)`: shared with `time_span_parse_exact.rs` — see [`NumTok`]'s doc comment.
+pub(crate) fn time_to_ticks(
     positive: bool,
     days: NumTok,
     hours: NumTok,
