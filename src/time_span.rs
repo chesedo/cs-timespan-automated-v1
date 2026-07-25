@@ -779,6 +779,243 @@ impl TimeSpan {
     ) -> Result<Self, TimeSpanError> {
         crate::time_span_parse_exact::parse_exact(input, format, styles)
     }
+
+    /// Formats `self` into `destination` using the given standard format string,
+    /// writing UTF-8 bytes directly rather than allocating a `String` — the
+    /// non-allocating counterpart to [`TimeSpan::to_string_format`]. Mirrors C#'s
+    /// `bool TryFormat(Span<char> destination, out int charsWritten, ...)` and its
+    /// `IUtf8SpanFormattable` `bool TryFormat(Span<byte> utf8Destination, out int
+    /// bytesWritten, ...)` overload.
+    ///
+    /// C# has two `TryFormat` overloads because `Span<char>` (UTF-16 code units) and
+    /// `Span<byte>` (UTF-8 code units) differ in encoding width for non-ASCII text.
+    /// Every standard-format output this crate produces (digits, `-`, `.`, `:`) is
+    /// ASCII, so a single `u8` buffer serves both roles identically: it's
+    /// simultaneously valid UTF-8 and a one-byte-per-character buffer. A caller
+    /// wanting a `&str` view can pass it through `std::str::from_utf8` infallibly,
+    /// since the output is always ASCII — so no separate char-buffer overload is
+    /// needed here, unlike C#'s two generic `TChar` instantiations.
+    ///
+    /// Supports the same standard format specifiers as [`TimeSpan::to_string_format`]
+    /// (an empty string, `"c"`, `"t"`, `"T"`, `"g"`, `"G"`); any other single
+    /// character or format string of length != 1 returns
+    /// [`TimeSpanError::InvalidFormat`], checked before `destination`'s length (so an
+    /// invalid format string is reported even when `destination` is too short to hold
+    /// any output). Custom format strings remain out of scope, same as
+    /// `to_string_format` — see that method's doc comment.
+    ///
+    /// Returns the number of bytes written on success. Returns
+    /// [`TimeSpanError::InsufficientBuffer`] — writing nothing — when `destination` is
+    /// shorter than the formatted output requires, mirroring `TryFormatStandard`'s
+    /// `false`-with-`charsWritten = 0` behavior rather than panicking or writing a
+    /// truncated prefix. A `destination` exactly long enough succeeds and is filled
+    /// completely; a larger `destination` succeeds and leaves any trailing bytes past
+    /// the written prefix untouched.
+    ///
+    /// Cf. TimeSpanFormat.cs#L50-L82 (`TryFormat<TChar>`), TimeSpanFormat.cs#L109-L294
+    /// (`TryFormatStandard<TChar>`, its `requiredOutputLength` computation and
+    /// insufficient-space `false` return)
+    ///
+    /// ```
+    /// use cs_timespan_automated_v1::TimeSpan;
+    ///
+    /// let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
+    /// let mut buf = [0u8; 32];
+    /// let written = ts.try_format(&mut buf, "c").unwrap();
+    /// assert_eq!(&buf[..written], b"01:02:03");
+    /// ```
+    pub fn try_format(&self, destination: &mut [u8], format: &str) -> Result<usize, TimeSpanError> {
+        let mut chars = format.chars();
+        let first = chars.next();
+        let second = chars.next();
+
+        let standard = match (first, second) {
+            (None, None) => StandardFormat::Constant,
+            (Some('c' | 't' | 'T'), None) => StandardFormat::Constant,
+            (Some('g'), None) => StandardFormat::GeneralShort,
+            (Some('G'), None) => StandardFormat::GeneralLong,
+            _ => return Err(TimeSpanError::InvalidFormat),
+        };
+
+        self.try_format_standard(standard, destination)
+    }
+
+    /// Shared implementation backing [`TimeSpan::try_format`] for all three standard
+    /// formats. Computes the exact required output length up front (mirroring
+    /// `TryFormatStandard`'s `requiredOutputLength` computation field-by-field) before
+    /// writing a single byte, so an undersized `destination` is rejected without any
+    /// partial write — matching C#'s all-or-nothing `false` return.
+    ///
+    /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard<TChar>`)
+    fn try_format_standard(
+        &self,
+        format: StandardFormat,
+        destination: &mut [u8],
+    ) -> Result<usize, TimeSpanError> {
+        let negative = self.ticks < 0;
+        let abs_ticks: i128 = if negative {
+            -(self.ticks as i128)
+        } else {
+            self.ticks as i128
+        };
+
+        let ticks_per_second = Self::TICKS_PER_SECOND as i128;
+        let mut fraction = (abs_ticks % ticks_per_second) as u32;
+        let total_seconds = abs_ticks / ticks_per_second;
+
+        let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
+        let (total_hours, minutes) = (total_minutes / 60, total_minutes % 60);
+        let (days, hours) = (total_hours / 24, total_hours % 24);
+
+        // Start with "hh:mm:ss" and adjust as necessary, mirroring
+        // TryFormatStandard's requiredOutputLength computation exactly so the
+        // insufficient-space case triggers at the right buffer length.
+        let mut required_output_length: usize = 8;
+        if negative {
+            required_output_length += 1; // leading '-'
+        }
+
+        let fraction_digits: u32 = match format {
+            StandardFormat::Constant => {
+                // "c": a fraction only when non-zero, always all 7 digits.
+                if fraction != 0 {
+                    required_output_length += 8; // 7 digits + leading '.'
+                    7
+                } else {
+                    0
+                }
+            }
+            StandardFormat::GeneralLong => {
+                // "G": a fraction unconditionally, always all 7 digits.
+                required_output_length += 8; // 7 digits + 1-char decimal separator
+                7
+            }
+            StandardFormat::GeneralShort => {
+                // "g": a fraction only when non-zero, trailing zeros trimmed.
+                if fraction != 0 {
+                    let (trimmed, digits) = Self::trim_fraction_trailing_zeros(fraction);
+                    fraction = trimmed;
+                    required_output_length += digits as usize + 1; // digits + separator
+                    digits
+                } else {
+                    0
+                }
+            }
+        };
+
+        let mut hour_digits: usize = 2;
+        if format == StandardFormat::GeneralShort && hours < 10 {
+            // "g": a single-digit hour rather than the usual two-digit hour.
+            hour_digits = 1;
+            required_output_length -= 1;
+        }
+
+        let day_digits: usize = if days > 0 {
+            let digits = Self::count_digits_i128(days);
+            required_output_length += digits + 1; // digits + leading "d." or "d:"
+            digits
+        } else if format == StandardFormat::GeneralLong {
+            // "G": a leading "0:" even when days is 0.
+            required_output_length += 2;
+            1
+        } else {
+            0
+        };
+
+        if destination.len() < required_output_length {
+            return Err(TimeSpanError::InsufficientBuffer);
+        }
+
+        let mut pos = 0;
+        if negative {
+            destination[pos] = b'-';
+            pos += 1;
+        }
+
+        if day_digits != 0 {
+            pos = Self::write_padded_digits(destination, pos, days, day_digits);
+            destination[pos] = if format == StandardFormat::Constant {
+                b'.'
+            } else {
+                b':'
+            };
+            pos += 1;
+        }
+
+        if hour_digits == 2 {
+            pos = Self::write_padded_digits(destination, pos, hours, 2);
+        } else {
+            destination[pos] = b'0' + hours as u8;
+            pos += 1;
+        }
+        destination[pos] = b':';
+        pos += 1;
+        pos = Self::write_padded_digits(destination, pos, minutes, 2);
+        destination[pos] = b':';
+        pos += 1;
+        pos = Self::write_padded_digits(destination, pos, seconds, 2);
+
+        if fraction_digits != 0 {
+            destination[pos] = b'.';
+            pos += 1;
+            pos = Self::write_padded_digits(
+                destination,
+                pos,
+                fraction as i128,
+                fraction_digits as usize,
+            );
+        }
+
+        debug_assert_eq!(pos, required_output_length);
+        Ok(pos)
+    }
+
+    /// Writes `value` into `destination` at `pos` as exactly `width` ASCII decimal
+    /// digits, zero-padded on the left, and returns the position just past what was
+    /// written. `value` must fit within `width` digits — callers compute `width` from
+    /// `value` itself (via [`TimeSpan::count_digits_i128`]) or from a fixed format
+    /// width known to be large enough (e.g. `2` for minutes/seconds).
+    fn write_padded_digits(destination: &mut [u8], pos: usize, value: i128, width: usize) -> usize {
+        debug_assert!(value >= 0);
+        let mut remaining = value;
+        for i in (0..width).rev() {
+            destination[pos + i] = b'0' + (remaining % 10) as u8;
+            remaining /= 10;
+        }
+        debug_assert_eq!(remaining, 0, "value did not fit within `width` digits");
+        pos + width
+    }
+
+    /// Number of decimal digits needed to write `value` (`value >= 0`) without
+    /// leading zeros. Mirrors `FormattingHelpers.CountDigits` as used by
+    /// `TryFormatStandard`'s day-segment length calculation.
+    fn count_digits_i128(value: i128) -> usize {
+        debug_assert!(value >= 0);
+        if value == 0 {
+            return 1;
+        }
+        let mut remaining = value;
+        let mut digits = 0;
+        while remaining > 0 {
+            digits += 1;
+            remaining /= 10;
+        }
+        digits
+    }
+}
+
+/// The standard format specifiers [`TimeSpan::try_format`] supports, mirroring
+/// `TimeSpanFormat`'s internal `StandardFormat` enum (`C`/`G`/`g`). `"t"`/`"T"` and an
+/// empty format string all map to [`StandardFormat::Constant`], same as
+/// [`TimeSpan::to_string_format`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StandardFormat {
+    /// The constant `"c"` format (and its `"t"`/`"T"`/empty-string aliases).
+    Constant,
+    /// The general short `"g"` format.
+    GeneralShort,
+    /// The general long `"G"` format.
+    GeneralLong,
 }
 
 /// Built on [`TimeSpan::checked_neg`]. Rust's `Neg` trait can't return a `Result`,
