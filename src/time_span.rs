@@ -303,14 +303,27 @@ impl TimeSpan {
         Ok(TimeSpan { ticks: result })
     }
 
-    /// Cf. TimeSpan.cs#L683 (instance `Negate`)
+    /// `TimeSpan.MinValue` can't be negated: `-i64::MIN` overflows `i64`. C#'s
+    /// `Negate()` delegates to `operator-`, which throws `OverflowException` in
+    /// exactly that case.
+    ///
+    /// Cf. TimeSpan.cs#L683 (instance `Negate`), TimeSpan.cs#L868-L875 (`operator-`)
     pub fn checked_neg(self) -> Result<Self, TimeSpanError> {
-        todo!()
+        self.ticks
+            .checked_neg()
+            .map(|ticks| TimeSpan { ticks })
+            .ok_or(TimeSpanError::Overflow)
     }
 
+    /// `TimeSpan.MinValue.Duration()` throws `OverflowException` in C#, because
+    /// taking the absolute value of `long.MinValue` overflows `i64`.
+    ///
     /// Cf. TimeSpan.cs#L416-L423
     pub fn duration(self) -> Result<Self, TimeSpanError> {
-        todo!()
+        self.ticks
+            .checked_abs()
+            .map(|ticks| TimeSpan { ticks })
+            .ok_or(TimeSpanError::Overflow)
     }
 
     /// Cf. TimeSpan.cs#L689 (instance `Multiply`)
@@ -414,12 +427,16 @@ impl TimeSpan {
     }
 }
 
-/// Cf. TimeSpan.cs#L868-L875 (unary `-`)
+/// Built on [`TimeSpan::checked_neg`]. Rust's `Neg` trait can't return a `Result`,
+/// so overflow panics here, mirroring C#'s `OverflowException` from `operator-`.
+///
+/// Cf. TimeSpan.cs#L868-L875
 impl std::ops::Neg for TimeSpan {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        self.checked_neg()
+            .expect("TimeSpan negation overflowed its representable range")
     }
 }
 
