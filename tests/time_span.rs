@@ -1594,38 +1594,144 @@ fn to_string_format_general_long() {
     );
 }
 
-/// A single-character format outside `"c"`/`"t"`/`"T"`/`"g"`/`"G"`, or any format
-/// string of length != 1 (custom format strings aren't implemented by this crate
-/// yet — see the `to_string_format` doc comment), reports [`TimeSpanError::InvalidFormat`]
-/// rather than panicking, mirroring C#'s `FormatException`.
+/// The custom-format-string mini-language (`TimeSpanFormat.FormatCustomized`):
+/// `%d`/`dd`...`dddddddd` (day), `%h`/`hh` (hour), `%m`/`mm` (minute), `%s`/`ss`
+/// (second), `%f`/`ff`...`fffffff` (fraction, truncated, always shown), `%F`/`FF`...
+/// `FFFFFFF` (fraction, trailing zeros dropped, omitted if empty), and `\`-escaped
+/// literal text.
 ///
-/// Cf. TimeSpanTests.cs#L1671-L1684 (`ToString_InvalidFormat_TestData`,
-/// `ToString_InvalidFormat_ThrowsFormatException`)
+/// Cf. TimeSpanFormat.cs#L296-455 (`FormatCustomized`), TimeSpanTests.cs#L1545-1570
+/// (`ToString_TestData`, custom-format rows)
+#[test]
+fn to_string_format_custom() {
+    let input = TimeSpan::from_ticks(123_456_789_101_112);
+
+    let cases: &[(&str, &str)] = &[
+        ("%d", "142"),
+        ("dd", "142"),
+        ("%h", "21"),
+        ("hh", "21"),
+        ("%m", "21"),
+        ("mm", "21"),
+        ("%s", "18"),
+        ("ss", "18"),
+        ("%f", "9"),
+        ("ff", "91"),
+        ("fff", "910"),
+        ("ffff", "9101"),
+        ("fffff", "91011"),
+        ("ffffff", "910111"),
+        ("fffffff", "9101112"),
+        ("%F", "9"),
+        ("FF", "91"),
+        ("FFF", "91"),
+        ("FFFF", "9101"),
+        ("FFFFF", "91011"),
+        ("FFFFFF", "910111"),
+        ("FFFFFFF", "9101112"),
+        ("dd\\.ss", "142.18"),
+        ("dddddd\\.ss", "000142.18"),
+    ];
+
+    for (format, expected) in cases {
+        assert_eq!(
+            Ok((*expected).to_string()),
+            input.to_string_format(format),
+            "format {format:?}"
+        );
+    }
+}
+
+/// Quoted literal spans (`'...'`/`"..."`) are copied verbatim into the output,
+/// including `\`-escaped characters within the quotes.
+///
+/// Cf. TimeSpanFormat.cs#L405-408 (`FormatCustomized`'s `'\''`/`'"'` case),
+/// DateTimeFormat.cs#L284-337 (`ParseQuoteString`)
+#[test]
+fn to_string_format_custom_quoted_literal() {
+    let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
+    assert_eq!(
+        Ok("hh is 01".to_string()),
+        ts.to_string_format("'hh is 'hh")
+    );
+    assert_eq!(
+        Ok("hh is 01".to_string()),
+        ts.to_string_format("\"hh is \"hh")
+    );
+    // A backslash-escaped character inside a quoted span is unescaped into the
+    // literal output, per `DateTimeFormat.ParseQuoteString`'s own `\`-handling.
+    assert_eq!(Ok("it's 01".to_string()), ts.to_string_format("'it\\'s 'hh"));
+}
+
+/// `FormatCustomized` never writes a sign character itself — unlike the standard
+/// `"c"`/`"g"`/`"G"` formats (which all prepend `-` for a negative `TimeSpan`), a
+/// custom format string has no specifier for the sign, so a negative `TimeSpan`
+/// formats identically to its positive magnitude. This is a genuine upstream quirk
+/// (no case in `FormatCustomized`'s switch ever emits `-`), not a bug this port
+/// introduces.
+///
+/// Cf. TimeSpanFormat.cs#L301-312 (`day`/`time` are negated to non-negative
+/// magnitudes before the tokenizer loop runs; no `-` is ever appended)
+#[test]
+fn to_string_format_custom_no_sign() {
+    let positive = TimeSpan::from_hms(1, 2, 3).unwrap();
+    let negative = -positive;
+    assert_eq!(
+        Ok("01:02:03".to_string()),
+        positive.to_string_format("hh:mm:ss")
+    );
+    assert_eq!(
+        Ok("01:02:03".to_string()),
+        negative.to_string_format("hh:mm:ss")
+    );
+}
+
+/// A single-character format outside `"c"`/`"t"`/`"T"`/`"g"`/`"G"` is always rejected
+/// at the top level (C#'s `Format`/`TryFormat` special-case format strings of length 1
+/// entirely separately from the custom-format tokenizer, even though some of those
+/// single characters, e.g. `"d"`, would otherwise be valid custom-format tokens). A
+/// syntactically-invalid custom format string (length != 1) reports
+/// [`TimeSpanError::InvalidFormat`] rather than panicking, mirroring C#'s
+/// `FormatException`.
+///
+/// Cf. TimeSpanFormat.cs#L26-41 (`Format`'s length-1 special case, checked before
+/// ever reaching `FormatCustomized`), TimeSpanTests.cs#L1671-L1684
+/// (`ToString_InvalidFormat_TestData`, `ToString_InvalidFormat_ThrowsFormatException`)
 #[test]
 fn to_string_format_invalid() {
     // TimeSpanTests.cs#L1673-L1676: single characters that aren't valid standard
     // format specifiers (uppercase "C" is deliberately invalid in C# too - only
-    // lowercase "c" is the constant format; "F" is a custom-format-only token).
-    for format in ["y", "F", "C"] {
+    // lowercase "c" is the constant format; "F"/"d" are custom-format-only tokens,
+    // never reachable as a length-1 format string).
+    for format in ["y", "F", "C", "d"] {
         assert_eq!(
             Err(TimeSpanError::InvalidFormat),
             TimeSpan::ZERO.to_string_format(format)
         );
     }
-    // TimeSpanTests.cs#L1674: "cc" is a 2-character custom format string in C#
-    // (invalid there too, since 'c' isn't a recognized custom-format token); this
-    // crate doesn't implement the custom-format tokenizer at all yet, so any
-    // multi-character format string is rejected up front.
-    assert_eq!(
-        Err(TimeSpanError::InvalidFormat),
-        TimeSpan::ZERO.to_string_format("cc")
-    );
-    // A custom format string this crate doesn't implement (valid in C#, produces
-    // "142.18" via `FormatCustomized`) is also rejected, not silently misformatted.
-    assert_eq!(
-        Err(TimeSpanError::InvalidFormat),
-        TimeSpan::from_ticks(123_456_789_101_112).to_string_format("dd\\.ss")
-    );
+    // TimeSpanTests.cs#L1674: "cc" is a 2-character custom format string in C# -
+    // invalid there too, since 'c' isn't a recognized custom-format token.
+    for format in [
+        "cc",       // 'c' isn't a recognized custom-format token
+        "hhh",      // 'h' run > 2 (TimeSpanFormat.cs#L326-329)
+        "mmm",      // 'm' run > 2 (TimeSpanFormat.cs#L334-337)
+        "sss",      // 's' run > 2 (TimeSpanFormat.cs#L342-345)
+        "ffffffff", // 'f' run > 7 (TimeSpanFormat.cs#L353-356)
+        "FFFFFFFF", // 'F' run > 7 (TimeSpanFormat.cs#L367-370)
+        "ddddddddd", // 'd' run > 8 (TimeSpanFormat.cs#L398-401)
+        "'unterminated",     // missing closing quote (DateTimeFormat.cs#L327-331)
+        "'bad\\",             // '\' at the end of a quoted span (DateTimeFormat.cs#L309-319)
+        "dd%",     // trailing '%' (TimeSpanFormat.cs#L416-429)
+        "dd%%",    // "%%" is disallowed (TimeSpanFormat.cs#L416-429)
+        "dd\\",    // trailing '\' (TimeSpanFormat.cs#L436-447)
+        "dXd",     // unquoted/unescaped literal character (TimeSpanFormat.cs#L449-451)
+    ] {
+        assert_eq!(
+            Err(TimeSpanError::InvalidFormat),
+            TimeSpan::ZERO.to_string_format(format),
+            "format {format:?}"
+        );
+    }
 }
 
 /// The non-allocating counterpart to `to_string_format`: writes UTF-8 bytes directly
