@@ -991,3 +991,287 @@ fn display_constant_format() {
             .to_string()
     );
 }
+
+/// Cf. TimeSpan.cs#L414, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L770-L788 (`FromDays_TestData`, `FromDays`)
+#[test]
+fn from_days_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY)),
+        TimeSpan::from_days(1.0)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_days(0.0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY / 2)),
+        TimeSpan::from_days(0.5)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_DAY)),
+        TimeSpan::from_days(-1.0)
+    );
+}
+
+/// `TimeSpan.FromDays(double.NaN)` throws `ArgumentException` in C#.
+///
+/// Cf. TimeSpan.cs#L636-L643, TimeSpanTests.cs#L790-L800 (`FromDays_Invalid`)
+#[test]
+fn from_days_nan() {
+    assert_eq!(
+        Err(TimeSpanError::NotANumber),
+        TimeSpan::from_days(f64::NAN)
+    );
+}
+
+/// `TimeSpan.FromDays(double.PositiveInfinity)`/out-of-range values throw
+/// `OverflowException` in C#.
+///
+/// Cf. TimeSpan.cs#L645-L656, TimeSpanTests.cs#L790-L800 (`FromDays_Invalid`)
+#[test]
+fn from_days_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days(f64::INFINITY)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_days(f64::NEG_INFINITY)
+    );
+    assert_eq!(Err(TimeSpanError::Overflow), TimeSpan::from_days(1e300));
+    assert_eq!(Err(TimeSpanError::Overflow), TimeSpan::from_days(-1e300));
+}
+
+/// The double/tick boundary: `MaxTicks` (`i64::MAX`) isn't exactly representable as
+/// `f64` and rounds up to `2^63`, so C# special-cases `ticks == MaxTicks` to return
+/// `MaxValue` directly rather than truncating a value that's actually one tick past
+/// the representable range.
+///
+/// Cf. TimeSpan.cs#L651-L654
+#[test]
+fn from_days_max_ticks_boundary() {
+    let value = i64::MAX as f64 / TimeSpan::TICKS_PER_DAY as f64;
+    assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_days(value));
+}
+
+/// Cf. TimeSpan.cs#L634, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L800-L814 (`FromHours_TestData`, `FromHours`)
+#[test]
+fn from_hours_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_HOUR)),
+        TimeSpan::from_hours(1.0)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_hours(0.0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_HOUR)),
+        TimeSpan::from_hours(-1.0)
+    );
+}
+
+/// `TimeSpan.FromHours(double.NaN)` throws `ArgumentException` in C#.
+///
+/// Cf. TimeSpan.cs#L636-L643, TimeSpanTests.cs#L822-L832 (`FromHours_Invalid`)
+#[test]
+fn from_hours_nan() {
+    assert_eq!(
+        Err(TimeSpanError::NotANumber),
+        TimeSpan::from_hours(f64::NAN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L645-L656, TimeSpanTests.cs#L822-L832 (`FromHours_Invalid`)
+#[test]
+fn from_hours_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours(f64::INFINITY)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hours(f64::NEG_INFINITY)
+    );
+}
+
+/// Cf. TimeSpan.cs#L651-L654
+#[test]
+fn from_hours_max_ticks_boundary() {
+    let value = i64::MAX as f64 / TimeSpan::TICKS_PER_HOUR as f64;
+    assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_hours(value));
+}
+
+/// Cf. TimeSpan.cs#L527, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L832-L847 (`FromMinutes_TestData`, `FromMinutes`)
+#[test]
+fn from_minutes_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MINUTE)),
+        TimeSpan::from_minutes(1.0)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_minutes(0.0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_MINUTE)),
+        TimeSpan::from_minutes(-1.0)
+    );
+}
+
+/// `TimeSpan.FromMinutes(double.NaN)` throws `ArgumentException` in C#.
+///
+/// Cf. TimeSpan.cs#L636-L643, TimeSpanTests.cs#L855-L864 (`FromMinutes_Invalid`)
+#[test]
+fn from_minutes_nan() {
+    assert_eq!(
+        Err(TimeSpanError::NotANumber),
+        TimeSpan::from_minutes(f64::NAN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L645-L656, TimeSpanTests.cs#L855-L864 (`FromMinutes_Invalid`)
+#[test]
+fn from_minutes_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes(f64::INFINITY)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_minutes(f64::NEG_INFINITY)
+    );
+}
+
+/// Cf. TimeSpan.cs#L651-L654
+#[test]
+fn from_minutes_max_ticks_boundary() {
+    let value = i64::MAX as f64 / TimeSpan::TICKS_PER_MINUTE as f64;
+    assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_minutes(value));
+}
+
+/// Cf. TimeSpan.cs#L560, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L864-L879 (`FromSeconds_TestData`, `FromSeconds`)
+#[test]
+fn from_seconds_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_SECOND)),
+        TimeSpan::from_seconds(1.0)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_seconds(0.0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_SECOND)),
+        TimeSpan::from_seconds(-1.0)
+    );
+}
+
+/// `TimeSpan.FromSeconds(double.NaN)` throws `ArgumentException` in C#.
+///
+/// Cf. TimeSpan.cs#L636-L643, TimeSpanTests.cs#L887-L896 (`FromSeconds_Invalid`)
+#[test]
+fn from_seconds_nan() {
+    assert_eq!(
+        Err(TimeSpanError::NotANumber),
+        TimeSpan::from_seconds(f64::NAN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L645-L656, TimeSpanTests.cs#L887-L896 (`FromSeconds_Invalid`)
+#[test]
+fn from_seconds_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds(f64::INFINITY)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_seconds(f64::NEG_INFINITY)
+    );
+}
+
+/// Cf. TimeSpan.cs#L651-L654
+#[test]
+fn from_seconds_max_ticks_boundary() {
+    let value = i64::MAX as f64 / TimeSpan::TICKS_PER_SECOND as f64;
+    assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_seconds(value));
+}
+
+/// Cf. TimeSpan.cs#L658, TimeSpan.cs#L636-L643, TimeSpanTests.cs#L903-L917 (`FromMilliseconds_TestData_NetCore`, `FromMilliseconds_Netcore`)
+#[test]
+fn from_milliseconds_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MILLISECOND)),
+        TimeSpan::from_milliseconds(1.0)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_milliseconds(0.0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_MILLISECOND)),
+        TimeSpan::from_milliseconds(-1.0)
+    );
+}
+
+/// `TimeSpan.FromMilliseconds(double.NaN)` throws `ArgumentException` in C#.
+///
+/// Cf. TimeSpan.cs#L636-L643, TimeSpanTests.cs#L930-L939 (`FromMilliseconds_Invalid`)
+#[test]
+fn from_milliseconds_nan() {
+    assert_eq!(
+        Err(TimeSpanError::NotANumber),
+        TimeSpan::from_milliseconds(f64::NAN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L645-L656, TimeSpanTests.cs#L930-L939 (`FromMilliseconds_Invalid`)
+#[test]
+fn from_milliseconds_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds(f64::INFINITY)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_milliseconds(f64::NEG_INFINITY)
+    );
+}
+
+/// Cf. TimeSpan.cs#L651-L654
+#[test]
+fn from_milliseconds_max_ticks_boundary() {
+    let value = i64::MAX as f64 / TimeSpan::TICKS_PER_MILLISECOND as f64;
+    assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_milliseconds(value));
+}
+
+/// Cf. TimeSpan.cs#L632, TimeSpan.cs#L679, TimeSpan.cs#L636-L643
+#[test]
+fn from_microseconds_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MICROSECOND)),
+        TimeSpan::from_microseconds(1.0)
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_microseconds(0.0));
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_MICROSECOND)),
+        TimeSpan::from_microseconds(-1.0)
+    );
+}
+
+/// `TimeSpan.FromMicroseconds(double.NaN)` throws `ArgumentException` in C#.
+///
+/// Cf. TimeSpan.cs#L636-L643
+#[test]
+fn from_microseconds_nan() {
+    assert_eq!(
+        Err(TimeSpanError::NotANumber),
+        TimeSpan::from_microseconds(f64::NAN)
+    );
+}
+
+/// Cf. TimeSpan.cs#L645-L656
+#[test]
+fn from_microseconds_overflow() {
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_microseconds(f64::INFINITY)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_microseconds(f64::NEG_INFINITY)
+    );
+}
+
+/// Cf. TimeSpan.cs#L651-L654
+#[test]
+fn from_microseconds_max_ticks_boundary() {
+    let value = i64::MAX as f64 / TimeSpan::TICKS_PER_MICROSECOND as f64;
+    assert_eq!(Ok(TimeSpan::MAX), TimeSpan::from_microseconds(value));
+}

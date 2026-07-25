@@ -344,9 +344,45 @@ impl TimeSpan {
         self.ticks as f64 / rhs.ticks as f64
     }
 
+    /// Validates `value` isn't NaN, then scales it into a tick count via
+    /// [`Self::interval_from_double_ticks`]. Shared by all six `f64`-argument
+    /// `from_*` factories below.
+    ///
+    /// Cf. TimeSpan.cs#L636-L643 (private `Interval`)
+    fn interval(value: f64, scale: f64) -> Result<Self, TimeSpanError> {
+        if value.is_nan() {
+            return Err(TimeSpanError::NotANumber);
+        }
+        Self::interval_from_double_ticks(value * scale)
+    }
+
+    /// Bounds-checks a tick count already computed as `f64` and converts it to a
+    /// `TimeSpan`. `MaxTicks` (`i64::MAX`) isn't exactly representable as `f64` —
+    /// it rounds up to `2^63` — so `ticks == MaxTicks` (i.e. `ticks == 2^63` after
+    /// that rounding) is special-cased to return [`Self::MAX`] directly rather than
+    /// truncating a double that's actually one past the representable range.
+    /// `MinTicks` (`i64::MIN`, `-2^63`) needs no such special case: it's an exact
+    /// power of two and converts losslessly.
+    ///
+    /// Cf. TimeSpan.cs#L645-L656 (private `IntervalFromDoubleTicks`)
+    fn interval_from_double_ticks(ticks: f64) -> Result<Self, TimeSpanError> {
+        let max_ticks = i64::MAX as f64;
+        let min_ticks = i64::MIN as f64;
+
+        if ticks > max_ticks || ticks < min_ticks || ticks.is_nan() {
+            return Err(TimeSpanError::Overflow);
+        }
+        if ticks == max_ticks {
+            return Ok(Self::MAX);
+        }
+        Ok(TimeSpan {
+            ticks: ticks as i64,
+        })
+    }
+
     /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L455
-    pub fn from_days(_value: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_days(value: f64) -> Result<Self, TimeSpanError> {
+        Self::interval(value, Self::TICKS_PER_DAY as f64)
     }
 
     /// Cf. TimeSpan.cs#L471-L481. The C# overload takes optional trailing
@@ -364,8 +400,8 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L492, TimeSpan.cs#L634
-    pub fn from_hours(_value: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_hours(value: f64) -> Result<Self, TimeSpanError> {
+        Self::interval(value, Self::TICKS_PER_HOUR as f64)
     }
 
     /// Cf. TimeSpan.cs#L507-L516
@@ -380,8 +416,8 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L527, TimeSpan.cs#L681
-    pub fn from_minutes(_value: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_minutes(value: f64) -> Result<Self, TimeSpanError> {
+        Self::interval(value, Self::TICKS_PER_MINUTE as f64)
     }
 
     /// Cf. TimeSpan.cs#L541-L549
@@ -395,8 +431,8 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L560, TimeSpan.cs#L685
-    pub fn from_seconds(_value: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_seconds(value: f64) -> Result<Self, TimeSpanError> {
+        Self::interval(value, Self::TICKS_PER_SECOND as f64)
     }
 
     /// Cf. TimeSpan.cs#L573-L580
@@ -409,8 +445,8 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L591-L592, TimeSpan.cs#L658
-    pub fn from_milliseconds(_value: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_milliseconds(value: f64) -> Result<Self, TimeSpanError> {
+        Self::interval(value, Self::TICKS_PER_MILLISECOND as f64)
     }
 
     /// Cf. TimeSpan.cs#L604-L610
@@ -422,8 +458,8 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L632, TimeSpan.cs#L679
-    pub fn from_microseconds(_value: f64) -> Result<Self, TimeSpanError> {
-        todo!()
+    pub fn from_microseconds(value: f64) -> Result<Self, TimeSpanError> {
+        Self::interval(value, Self::TICKS_PER_MICROSECOND as f64)
     }
 }
 
