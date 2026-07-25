@@ -942,16 +942,8 @@ fn parse_exact_invalid() {
     let cases: [(&str, &str, TimeSpanError); 28] = [
         ("00:00:00", "", TimeSpanError::InvalidFormat),
         ("12.5:2", "V", TimeSpanError::InvalidFormat),
-        (
-            "12.35:32:43",
-            r"dd\.h\:m\:s",
-            TimeSpanError::Overflow,
-        ),
-        (
-            "12.5:2:3",
-            r"d\.hh\:mm\:ss",
-            TimeSpanError::InvalidFormat,
-        ),
+        ("12.35:32:43", r"dd\.h\:m\:s", TimeSpanError::Overflow),
+        ("12.5:2:3", r"d\.hh\:mm\:ss", TimeSpanError::InvalidFormat),
         ("12.5:2", r"d\.hh\:mm\:ss", TimeSpanError::InvalidFormat),
         ("678", "ffff", TimeSpanError::InvalidFormat),
         ("00000012", "FFFFFFFF", TimeSpanError::InvalidFormat),

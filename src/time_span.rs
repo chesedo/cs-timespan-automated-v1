@@ -777,7 +777,7 @@ impl TimeSpan {
         format: &str,
         styles: TimeSpanStyles,
     ) -> Result<Self, TimeSpanError> {
-        todo!()
+        crate::time_span_parse_exact::parse_exact(input, format, styles)
     }
 }
 
