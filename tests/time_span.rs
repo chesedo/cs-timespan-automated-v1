@@ -790,3 +790,73 @@ fn parse_different_length_fraction_with_leading_zeros() {
         );
     }
 }
+
+/// `checked_neg` mirrors C#'s instance `Negate()`, which delegates to `operator-`
+/// (TimeSpan.cs#L683, #L868-L875).
+///
+/// Cf. TimeSpanTests.cs#L982-L997 (`Negate`)
+#[test]
+fn checked_neg_basic() {
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-12345)),
+        TimeSpan::from_ticks(12345).checked_neg()
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(12345)),
+        TimeSpan::from_ticks(-12345).checked_neg()
+    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::ZERO.checked_neg());
+}
+
+/// `TimeSpan.MinValue.Negate()` throws `OverflowException` in C#, because negating
+/// `long.MinValue` overflows `i64`.
+///
+/// Cf. TimeSpan.cs#L868-L875, TimeSpanTests.cs#L999-L1004 (`Negate_Invalid`)
+#[test]
+fn checked_neg_overflow() {
+    assert_eq!(Err(TimeSpanError::Overflow), TimeSpan::MIN.checked_neg());
+}
+
+/// `operator-` (unary) mirrors `checked_neg` for the non-overflowing case.
+///
+/// Cf. TimeSpan.cs#L868-L875, TimeSpanTests.cs#L982-L997 (`Negate`)
+#[test]
+fn neg_operator_basic() {
+    assert_eq!(TimeSpan::from_ticks(-5), -TimeSpan::from_ticks(5));
+}
+
+/// Unary `-TimeSpan.MinValue` throws `OverflowException` in C#; Rust's `Neg` trait
+/// can't return a `Result`, so the established pattern in this crate is to panic
+/// instead (see `add_operator_overflow_panics`).
+///
+/// Cf. TimeSpan.cs#L868-L875, TimeSpanTests.cs#L999-L1004 (`Negate_Invalid`)
+#[test]
+#[should_panic(expected = "overflowed its representable range")]
+fn neg_operator_overflow_panics() {
+    let _ = -TimeSpan::MIN;
+}
+
+/// `duration()` mirrors C#'s `Duration()`, returning the absolute tick count.
+///
+/// Cf. TimeSpanTests.cs#L276-L291 (`Duration`)
+#[test]
+fn duration_basic() {
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::ZERO.duration());
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(12345)),
+        TimeSpan::from_ticks(12345).duration()
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(12345)),
+        TimeSpan::from_ticks(-12345).duration()
+    );
+}
+
+/// `TimeSpan.MinValue.Duration()` throws `OverflowException` in C#, because taking
+/// the absolute value of `long.MinValue` overflows `i64`.
+///
+/// Cf. TimeSpan.cs#L416-L423, TimeSpanTests.cs#L292-L297 (`Duration_Invalid`)
+#[test]
+fn duration_overflow() {
+    assert_eq!(Err(TimeSpanError::Overflow), TimeSpan::MIN.duration());
+}
