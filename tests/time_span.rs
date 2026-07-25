@@ -1660,7 +1660,10 @@ fn to_string_format_custom_quoted_literal() {
     );
     // A backslash-escaped character inside a quoted span is unescaped into the
     // literal output, per `DateTimeFormat.ParseQuoteString`'s own `\`-handling.
-    assert_eq!(Ok("it's 01".to_string()), ts.to_string_format("'it\\'s 'hh"));
+    assert_eq!(
+        Ok("it's 01".to_string()),
+        ts.to_string_format("'it\\'s 'hh")
+    );
 }
 
 /// `FormatCustomized` never writes a sign character itself — unlike the standard
@@ -1678,11 +1681,11 @@ fn to_string_format_custom_no_sign() {
     let negative = -positive;
     assert_eq!(
         Ok("01:02:03".to_string()),
-        positive.to_string_format("hh:mm:ss")
+        positive.to_string_format("hh\\:mm\\:ss")
     );
     assert_eq!(
         Ok("01:02:03".to_string()),
-        negative.to_string_format("hh:mm:ss")
+        negative.to_string_format("hh\\:mm\\:ss")
     );
 }
 
@@ -1712,19 +1715,19 @@ fn to_string_format_invalid() {
     // TimeSpanTests.cs#L1674: "cc" is a 2-character custom format string in C# -
     // invalid there too, since 'c' isn't a recognized custom-format token.
     for format in [
-        "cc",       // 'c' isn't a recognized custom-format token
-        "hhh",      // 'h' run > 2 (TimeSpanFormat.cs#L326-329)
-        "mmm",      // 'm' run > 2 (TimeSpanFormat.cs#L334-337)
-        "sss",      // 's' run > 2 (TimeSpanFormat.cs#L342-345)
-        "ffffffff", // 'f' run > 7 (TimeSpanFormat.cs#L353-356)
-        "FFFFFFFF", // 'F' run > 7 (TimeSpanFormat.cs#L367-370)
-        "ddddddddd", // 'd' run > 8 (TimeSpanFormat.cs#L398-401)
-        "'unterminated",     // missing closing quote (DateTimeFormat.cs#L327-331)
-        "'bad\\",             // '\' at the end of a quoted span (DateTimeFormat.cs#L309-319)
-        "dd%",     // trailing '%' (TimeSpanFormat.cs#L416-429)
-        "dd%%",    // "%%" is disallowed (TimeSpanFormat.cs#L416-429)
-        "dd\\",    // trailing '\' (TimeSpanFormat.cs#L436-447)
-        "dXd",     // unquoted/unescaped literal character (TimeSpanFormat.cs#L449-451)
+        "cc",            // 'c' isn't a recognized custom-format token
+        "hhh",           // 'h' run > 2 (TimeSpanFormat.cs#L326-329)
+        "mmm",           // 'm' run > 2 (TimeSpanFormat.cs#L334-337)
+        "sss",           // 's' run > 2 (TimeSpanFormat.cs#L342-345)
+        "ffffffff",      // 'f' run > 7 (TimeSpanFormat.cs#L353-356)
+        "FFFFFFFF",      // 'F' run > 7 (TimeSpanFormat.cs#L367-370)
+        "ddddddddd",     // 'd' run > 8 (TimeSpanFormat.cs#L398-401)
+        "'unterminated", // missing closing quote (DateTimeFormat.cs#L327-331)
+        "'bad\\",        // '\' at the end of a quoted span (DateTimeFormat.cs#L309-319)
+        "dd%",           // trailing '%' (TimeSpanFormat.cs#L416-429)
+        "dd%%",          // "%%" is disallowed (TimeSpanFormat.cs#L416-429)
+        "dd\\",          // trailing '\' (TimeSpanFormat.cs#L436-447)
+        "dXd",           // unquoted/unescaped literal character (TimeSpanFormat.cs#L449-451)
     ] {
         assert_eq!(
             Err(TimeSpanError::InvalidFormat),
