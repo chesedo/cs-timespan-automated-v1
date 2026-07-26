@@ -412,10 +412,21 @@ pub(crate) fn parse_exact_multiple(
     formats: &[&str],
     styles: TimeSpanStyles,
 ) -> Result<TimeSpan, TimeSpanError> {
-    // Cf. TimeSpanParse.cs#L1670-1673: `formats == null` has no `&str` equivalent (a
-    // `&[&str]` can't be null), so only the `formats.Length == 0` half of upstream's two
-    // upfront checks applies here — a bad-format failure distinct from any individual
-    // format being bad (TimeSpanParse.cs#L1675-1676, `SetNoFormatSpecifierFailure`).
+    // Cf. TimeSpanParse.cs#L1664-1673: `formats == null` has no `&str` equivalent (a
+    // `&[&str]` can't be null), so only the `input.Length == 0` and `formats.Length == 0`
+    // halves of upstream's three upfront checks apply here. The `input.Length == 0` check is
+    // unconditional — it runs before `formats` is even inspected, and has no counterpart in
+    // `parse_exact`/`TryParseExactTimeSpan` (the single-format overload), which happily
+    // parses `""` against a format that matches empty input (e.g. a custom format consisting
+    // solely of an empty quoted literal, `"''"`). The array overload's blanket rejection of
+    // empty input is a real behavioral difference from the single-format overload, not a bug
+    // to reconcile away.
+    if input.is_empty() {
+        return Err(TimeSpanError::InvalidFormat);
+    }
+
+    // Cf. TimeSpanParse.cs#L1674-1676, `SetNoFormatSpecifierFailure` — a bad-format failure
+    // distinct from any individual format being bad.
     if formats.is_empty() {
         return Err(TimeSpanError::InvalidFormat);
     }
