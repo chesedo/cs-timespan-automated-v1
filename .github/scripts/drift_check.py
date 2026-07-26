@@ -260,21 +260,39 @@ def call_claude(system_prompt: str, user_prompt: str) -> str:
     return text
 
 
+class DriftCheckError(Exception):
+    """Claude's response for one scan/verify call couldn't be parsed or didn't
+    match the expected schema. Callers decide whether that's fatal (scan has
+    no candidates to work with) or skippable (one bad verify shouldn't lose
+    the rest of the batch)."""
+
+
+def strip_code_fence(text: str) -> str:
+    """Best-effort fallback for when the model wraps its JSON in a ``` fence
+    despite STRICT_JSON_PREAMBLE/POSTAMBLE telling it not to. Instructions
+    alone aren't 100% reliable, so this is a defensive second layer, not a
+    replacement for the prompt-level instruction."""
+    match = re.match(r"^```(?:json)?\s*\n(.*?)\n?```\s*$", text.strip(), re.DOTALL)
+    return match.group(1) if match else text
+
+
 def parse_json_response(raw: str, label: str) -> object:
-    try:
-        return json.loads(raw.strip())
-    except json.JSONDecodeError:
-        print(f"Claude did not return valid JSON ({label}). Raw response was:", file=sys.stderr)
-        print("--- start raw response ---", file=sys.stderr)
-        print(raw if raw.strip() else "(empty)", file=sys.stderr)
-        print("--- end raw response ---", file=sys.stderr)
-        sys.exit(1)
+    for attempt in (raw.strip(), strip_code_fence(raw)):
+        try:
+            return json.loads(attempt)
+        except json.JSONDecodeError:
+            continue
+    print(f"Claude did not return valid JSON ({label}). Raw response was:", file=sys.stderr)
+    print("--- start raw response ---", file=sys.stderr)
+    print(raw if raw.strip() else "(empty)", file=sys.stderr)
+    print("--- end raw response ---", file=sys.stderr)
+    raise DriftCheckError(f"invalid JSON for {label}")
 
 
 def fail_schema(label: str, data: object) -> None:
     print(f"Claude's response for {label} didn't match the expected schema:", file=sys.stderr)
     print(json.dumps(data), file=sys.stderr)
-    sys.exit(1)
+    raise DriftCheckError(f"schema mismatch for {label}")
 
 
 def scan_candidates(
@@ -346,13 +364,19 @@ def main() -> None:
     known = existing_drift_titles(label)
     ignore_notes = read_local(IGNORE_FILE) if os.path.exists(IGNORE_FILE) else ""
 
-    candidates = scan_candidates(rust_blob, csharp_blob, known, ignore_notes)
+    try:
+        candidates = scan_candidates(rust_blob, csharp_blob, known, ignore_notes)
+    except DriftCheckError as e:
+        # Fatal: with no candidate list, there's nothing left to verify.
+        print(f"Scan pass failed: {e}", file=sys.stderr)
+        sys.exit(1)
     if not candidates:
         print("No candidates found.")
         return
     print(f"Scan found {len(candidates)} candidate(s).", file=sys.stderr)
 
     filed = 0
+    errors = 0
     for i, candidate in enumerate(candidates, start=1):
         if filed >= MAX_ISSUES_PER_RUN:
             print(f"Filed {MAX_ISSUES_PER_RUN} issues, stopping for this run.", file=sys.stderr)
@@ -362,8 +386,16 @@ def main() -> None:
         print(f"[{i}/{len(candidates)}] {cid}", file=sys.stderr)
         # Each candidate is verified in its own isolated call — no shared
         # context with the scan pass or with any other candidate — so an
-        # earlier finding can't bias whether this one gets confirmed.
-        verdict = verify_candidate(candidate, ignore_notes, rust_blob, csharp_blob)
+        # earlier finding can't bias whether this one gets confirmed. A
+        # malformed response for one candidate is logged and skipped rather
+        # than aborting the run, so one flaky call doesn't cost the rest of
+        # the batch its verification.
+        try:
+            verdict = verify_candidate(candidate, ignore_notes, rust_blob, csharp_blob)
+        except DriftCheckError as e:
+            print(f"Skipping {cid}: {e}", file=sys.stderr)
+            errors += 1
+            continue
 
         if verdict["verdict"] != "CONFIRMED":
             print(f"{verdict['verdict']}: {cid} ({verdict.get('reason', 'no reason given')})")
@@ -391,6 +423,15 @@ def main() -> None:
 
     if filed == 0:
         print("No drift confirmed after verification.")
+    if errors:
+        print(
+            f"{errors} candidate(s) could not be verified due to malformed "
+            f"responses; see the 'Skipping ...' warnings above. Failing the "
+            f"run so this doesn't pass silently, even though {filed} issue(s) "
+            f"were still filed for the candidates that did verify cleanly.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
