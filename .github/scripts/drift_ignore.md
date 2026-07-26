@@ -72,3 +72,53 @@ unchecked `long` sum for `days * MicrosecondsPerDay` truly does overflow
 
 Don't flag this pattern again for `dhms_to_ticks` or any structurally
 similar multi-term-sum-then-range-check helper in this crate.
+
+### Custom-format `\`-escape rejecting/accepting supplementary-plane (emoji) characters
+
+Findings claiming that the custom-format-string `\`-escape handling (the
+`'\\'` match arm in `time_span_format_custom.rs`'s `format_customized` and
+`time_span_parse_exact.rs`'s `parse_exact`) diverges from C# for an escaped
+supplementary-plane character (e.g. `\😀`), because C#'s escape lookahead
+(`DateTimeFormat.ParseNextChar`, shared with `DateTime`'s custom-format
+code) indexes the format string by UTF-16 code unit (`format[pos + 1]`)
+rather than by full Unicode scalar value, so for a surrogate-pair character
+it only captures the lone high surrogate as the escaped literal and leaves
+the low surrogate to be rejected by the `default: throw` arm on the next
+loop iteration — meaning C# actually throws `FormatException`/returns
+false for `\` followed by an astral-plane character, while this crate's
+`Vec<char>`-based tokenizer (one element per Unicode scalar value, matching
+Rust's own `char` type) consumes the whole escaped character correctly and
+succeeds.
+
+This has been investigated (issue #66). Confirmed accurate by tracing both
+`TimeSpanFormat.cs`'s and `TimeSpanParse.cs`'s `'\\'` arms together with
+`DateTimeFormat.ParseNextChar` (`return format[pos + 1];`, a single `char`)
+against the current `dotnet/runtime` source, and reproduced empirically
+against this crate's current code (`to_string_format("\\😀")` returns
+`Ok("😀")`; C#'s traced equivalent throws). Judged not worth replicating,
+for the same reasons as the `i128`-widening entry above:
+
+- This is a leftover UTF-16-code-unit artifact of `char`/`ReadOnlySpan<char>`
+  being 16-bit code units in C#, not a documented or deliberately specified
+  restriction on which characters may be `\`-escaped — the custom
+  format-string docs describe `\` as escaping "the character that follows
+  it" with no carve-out for astral-plane characters.
+- `dotnet/runtime`'s own `TimeSpanTests.cs` has no test exercising a
+  surrogate-pair/emoji character anywhere in a custom format string, escaped
+  or otherwise — this isn't a pinned or regression-tested C# behavior, just
+  an unexercised consequence of an old shared helper never having been
+  updated for supplementary-plane awareness.
+- This crate already uses `Vec<char>` (Unicode scalar values) uniformly
+  throughout the custom-format tokenizer/formatter — for repeat-pattern
+  counting, quoted-literal extraction, and every other lookahead, not just
+  the `\`-escape arm. Special-casing `\`-escape alone to split surrogate
+  pairs would require converting to UTF-16 code units in one narrow spot of
+  an otherwise scalar-value-based parser, purely to reproduce a bug, and
+  would make `to_string_format`/`parse_exact` reject `\`-escaped emoji that
+  currently work correctly and intuitively — a usability regression, not a
+  fix.
+
+Don't flag this pattern again for the `\`-escape arm (or any other
+`Vec<char>`-based lookahead in the custom-format tokenizer/formatter)
+rejecting or accepting supplementary-plane characters differently than
+C#'s UTF-16-code-unit-indexed equivalent.
