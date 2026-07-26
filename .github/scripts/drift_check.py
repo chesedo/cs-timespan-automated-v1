@@ -49,22 +49,39 @@ DRY_RUN = "--dry-run" in sys.argv
 # harness in the loop. Stated at both the start and end of the prompt, not
 # just once — a single mid-prompt mention of "JSON only" is easy for the
 # model to satisfy loosely (e.g. wrapping the JSON in a code fence) when nothing
-# reinforces it right before generation begins.
+# reinforces it right before generation begins. There's no fallback parsing
+# here to compensate (e.g. stripping a ``` fence if one slips through) —
+# deliberately, so a model that ignores this instruction fails loudly on that
+# candidate instead of being silently tolerated, which would let the
+# instruction quietly rot back to being ignorable.
 STRICT_JSON_PREAMBLE = """\
 CRITICAL OUTPUT RULE, read this first: your reply is fed straight into a JSON \
-parser, never read by a person. The first character you output must be the \
-opening bracket/brace of the JSON value described below, and the last must be \
-its matching close. No ``` or ```json code fence, no prose before or after, no \
-step-by-step trace written outside the JSON. Any reasoning you want to keep \
-goes inside the JSON's own text fields — writing it as a preamble breaks the \
-parser and silently discards the finding, so don't do it, even out of habit.
+parser, never read by a person. There is no fallback — if a ``` fence, or any \
+character before the opening bracket/brace or after its matching close, ends \
+up in your reply, the parser throws and this finding is silently discarded. \
+That is the ONLY failure mode that matters here; getting the analysis right \
+but the output format wrong is the same as not answering at all.
+
+Wrong (never do this, even though it looks harmless):
+```json
+{"verdict": "CONFIRMED", ...}
+```
+
+Right (the entire reply, verbatim, first character to last):
+{"verdict": "CONFIRMED", ...}
+
+No ``` or ```json code fence — not even a single one, not even to be helpful, \
+not even because code fences are normally good practice for JSON. No prose \
+before or after. No step-by-step trace written outside the JSON. Any \
+reasoning you want to keep goes inside the JSON's own text fields.
 
 """
 
 STRICT_JSON_POSTAMBLE = """
 
-Reminder: raw JSON only, no ``` fence, no prose before or after. Begin your
-reply with the opening bracket/brace right now.
+Reminder: raw JSON only. Do not wrap it in a ``` or ```json fence. No prose
+before or after. Begin your reply with the opening bracket/brace right now —
+the very first character you emit.
 """
 
 
@@ -267,26 +284,15 @@ class DriftCheckError(Exception):
     the rest of the batch)."""
 
 
-def strip_code_fence(text: str) -> str:
-    """Best-effort fallback for when the model wraps its JSON in a ``` fence
-    despite STRICT_JSON_PREAMBLE/POSTAMBLE telling it not to. Instructions
-    alone aren't 100% reliable, so this is a defensive second layer, not a
-    replacement for the prompt-level instruction."""
-    match = re.match(r"^```(?:json)?\s*\n(.*?)\n?```\s*$", text.strip(), re.DOTALL)
-    return match.group(1) if match else text
-
-
 def parse_json_response(raw: str, label: str) -> object:
-    for attempt in (raw.strip(), strip_code_fence(raw)):
-        try:
-            return json.loads(attempt)
-        except json.JSONDecodeError:
-            continue
-    print(f"Claude did not return valid JSON ({label}). Raw response was:", file=sys.stderr)
-    print("--- start raw response ---", file=sys.stderr)
-    print(raw if raw.strip() else "(empty)", file=sys.stderr)
-    print("--- end raw response ---", file=sys.stderr)
-    raise DriftCheckError(f"invalid JSON for {label}")
+    try:
+        return json.loads(raw.strip())
+    except json.JSONDecodeError:
+        print(f"Claude did not return valid JSON ({label}). Raw response was:", file=sys.stderr)
+        print("--- start raw response ---", file=sys.stderr)
+        print(raw if raw.strip() else "(empty)", file=sys.stderr)
+        print("--- end raw response ---", file=sys.stderr)
+        raise DriftCheckError(f"invalid JSON for {label}")
 
 
 def fail_schema(label: str, data: object) -> None:
