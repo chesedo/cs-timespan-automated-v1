@@ -681,6 +681,23 @@ impl TimeSpan {
         Self::interval(value, Self::TICKS_PER_MICROSECOND as f64)
     }
 
+    /// Single-argument integer overload, bounds-checked against the
+    /// whole-microsecond range via [`Self::from_units`] — distinct from
+    /// [`Self::from_microseconds`]'s `f64`/`Interval`-based overload and the
+    /// multi-component `_parts` constructors (which go through
+    /// [`Self::from_microseconds_i128`] instead). Takes `i64` (rather than
+    /// `i32`) matching C#'s `FromMicroseconds(long)`.
+    ///
+    /// Cf. TimeSpan.cs#L632
+    pub fn from_microseconds_i64(microseconds: i64) -> Result<Self, TimeSpanError> {
+        Self::from_units(
+            microseconds,
+            Self::TICKS_PER_MICROSECOND,
+            Self::MIN_MICROSECONDS,
+            Self::MAX_MICROSECONDS,
+        )
+    }
+
     /// Formats `self` using the given standard or custom format string, mirroring C#'s
     /// `ToString(string? format)` for invariant-culture formats.
     ///

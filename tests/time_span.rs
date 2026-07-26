@@ -1938,6 +1938,63 @@ fn from_milliseconds_i64_overflow() {
     );
 }
 
+/// Cf. TimeSpan.cs#L632 (`FromMicroseconds(long)`), TimeSpan.cs#L433-L444
+/// (`FromUnits`). C# has no dedicated single-argument
+/// `FromMicroseconds_Int_Single_ShouldCreate` theory (only the multi-component
+/// `_parts` overloads are tested directly), so bounds here mirror the
+/// `internal const MinMicroseconds`/`MaxMicroseconds` comment values instead.
+#[test]
+fn from_microseconds_i64_basic() {
+    assert_eq!(
+        TimeSpan::from_hms(0, 0, 0),
+        TimeSpan::from_microseconds_i64(0)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MICROSECOND)),
+        TimeSpan::from_microseconds_i64(1)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(-TimeSpan::TICKS_PER_MICROSECOND)),
+        TimeSpan::from_microseconds_i64(-1)
+    );
+
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            MAX_MICROSECONDS * TimeSpan::TICKS_PER_MICROSECOND
+        )),
+        TimeSpan::from_microseconds_i64(MAX_MICROSECONDS)
+    );
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(
+            -MAX_MICROSECONDS * TimeSpan::TICKS_PER_MICROSECOND
+        )),
+        TimeSpan::from_microseconds_i64(-MAX_MICROSECONDS)
+    );
+}
+
+/// Cf. TimeSpan.cs#L433-L444 (`FromUnits`)
+#[test]
+fn from_microseconds_i64_overflow() {
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_microseconds_i64(MAX_MICROSECONDS + 1)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_microseconds_i64(-(MAX_MICROSECONDS + 1))
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_microseconds_i64(i64::MAX)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_microseconds_i64(i64::MIN)
+    );
+}
+
 /// `Display` mirrors C#'s parameterless `ToString()`, which delegates to
 /// `TimeSpanFormat.FormatC` — the invariant, culture-independent constant "c" format
 /// `[-][d.]hh:mm:ss[.fffffff]`. Only the constant-format rows of the C# test's
