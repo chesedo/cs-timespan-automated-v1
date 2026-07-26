@@ -902,6 +902,11 @@ impl TimeSpan {
     ///
     /// Notable edge cases, matching upstream:
     ///
+    /// - Empty `input` is *unconditionally* a bad-format failure
+    ///   ([`TimeSpanError::InvalidFormat`]), checked before `formats` is even inspected —
+    ///   unlike [`TimeSpan::parse_exact`], which has no such check and will happily parse
+    ///   `""` against a format that matches empty input (e.g. a custom format consisting
+    ///   solely of an empty quoted literal, `"''"`).
     /// - An empty `formats` slice is itself a bad-format failure
     ///   ([`TimeSpanError::InvalidFormat`]), distinct from any individual format being bad.
     ///   (C#'s `formats == null` case has no `&str` equivalent here — a `&[&str]` can't be
