@@ -1258,6 +1258,27 @@ fn parse_exact_multiple_empty_formats_array() {
     );
 }
 
+/// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): `input.Length == 0` is
+/// an unconditional bad-format failure, checked before `formats` is even inspected — unlike
+/// `TryParseExactTimeSpan` (the single-format overload, TimeSpanParse.cs#L1228-1247), which
+/// has no such check at all. So `""` against a format that *would* successfully match empty
+/// input (a custom format consisting solely of an empty quoted literal, e.g. `"''"`) must
+/// still fail here, even though `TimeSpan::parse_exact("", "''", ..)` alone succeeds.
+#[test]
+fn parse_exact_multiple_empty_input_rejected_unconditionally() {
+    assert_eq!(
+        Ok(TimeSpan::ZERO),
+        TimeSpan::parse_exact("", "''", TimeSpanStyles::None),
+        "sanity check: the single-format overload accepts empty input against this format"
+    );
+    assert_eq!(
+        Err(TimeSpanError::InvalidFormat),
+        TimeSpan::parse_exact_multiple("", &["''"], TimeSpanStyles::None),
+        "the array overload must reject empty input unconditionally, before ever trying a \
+         format"
+    );
+}
+
 /// Cf. `TryParseExactMultipleTimeSpan` (TimeSpanParse.cs#L1662-1703): an empty format string
 /// anywhere in the array (`string.IsNullOrEmpty(format)`) is an immediate
 /// `SetBadFormatSpecifierFailure`, returned right away rather than being skipped in favor of
