@@ -1,31 +1,11 @@
 //! Gungraun (instruction-count) benchmark for the custom-format-string path of
-//! `TimeSpan::to_string_format`/`TimeSpan::try_format` (see issue #72).
+//! `TimeSpan::to_string_format`/`TimeSpan::try_format`, both of which route through
+//! `format_customized` (`src/time_span_format_custom.rs`) and its one intermediate
+//! allocation — see issue #72 and `try_format`'s doc comment for the full rationale.
 //!
-//! Both entry points funnel any non-standard format string into
-//! `format_customized` (`src/time_span_format_custom.rs`), which builds its output in
-//! an unsized `String::new()` (no `.with_capacity` sizing hint) — a plausible future
-//! optimization target once this benchmark gives it something to measure against (see
-//! that function's `pub(crate) fn format_customized` doc comment). `try_format` in
-//! particular documents that it does *not* extend `try_format`'s non-allocating
-//! guarantee to custom formats: it routes through `format_customized` (one
-//! intermediate `String` allocation) and then copies those bytes into the caller's
-//! buffer — "a deliberate tradeoff rather than an oversight" per `try_format`'s doc
-//! comment. This file benchmarks both entry points so a future optimization to
-//! `format_customized` (e.g. `String::with_capacity`) shows up as a measured
-//! improvement on both, not just one.
-//!
-//! The format string used, `"dd\.hh\:mm\:ss\.fffffff"`, is chosen to exercise every
-//! token kind `format_customized`'s tokenizer dispatches on in a single call: `'d'`
-//! (day digits), `'h'`/`'m'`/`'s'` (digit-formatting via `format_digits`), `'f'`
-//! (fraction-formatting via `pow10_up_to_max_fraction_digits`), and `'\\'` (the escape
-//! branch, for the literal `.`/`:` separators) — see the `match` arms in
-//! `format_customized`, `src/time_span_format_custom.rs`.
-//!
-//! Discovered by `.github/workflows/bench.yml` via the `benches/*_gungraun.rs` naming
-//! convention and run as a base-vs-head CI regression gate per the perf-verification
-//! skill: deterministic instruction counts (via callgrind), no statistical noise
-//! smoothing needed. The `soft_limits` below is the threshold above which a same-job
-//! base/head diff fails the gate.
+//! The format string exercises every token kind `format_customized`'s tokenizer
+//! dispatches on in one call: `'d'`, `'h'`/`'m'`/`'s'`, `'f'`, and the `'\\'` escape
+//! branch.
 use std::hint::black_box;
 
 use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};

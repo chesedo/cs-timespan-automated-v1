@@ -1,31 +1,14 @@
 //! Gungraun (instruction-count) benchmark pinning `TimeSpan::try_format`'s documented
-//! non-allocating claim for the three standard formats "c", "g", "G". `try_format`
-//! dispatches these to `try_format_standard` (`src/time_span.rs`), which computes the
-//! required output length up front and writes directly into the caller's `&mut [u8]`
-//! with no intermediate allocation. `to_string_format` (`src/time_span.rs`), by
-//! contrast, always builds and returns an owned `String` — via `Display`/`to_string`
-//! for "c" and via `format_general` for "g"/"G". See issue #71.
+//! non-allocating claim for "c"/"g"/"G", against `to_string_format`'s always-allocating
+//! path for the same formats — see issue #71 and `try_format`'s doc comment
+//! (`src/time_span.rs`) for the full rationale.
 //!
-//! Each pair below runs the same `TimeSpan` value and format specifier through both
-//! APIs. CI discovers and runs `benches/*_gungraun.rs` as a same-job base-vs-head diff
-//! (see `.github/workflows/bench.yml`), and gungraun's `soft_limits` gate a benchmark
-//! against *its own* prior instruction count, not against a different benchmark's
-//! count — there's no cross-benchmark "A must stay below B" primitive here. So the way
-//! this file protects `try_format`'s allocation-free edge is indirect but effective:
-//! `bench_try_format`'s cases get a soft limit much tighter than `bench_to_string_format`'s.
-//! Writing a handful of ASCII digits into a fixed buffer is a small, allocation-free,
-//! and highly stable operation, so even a cheap malloc/free pair introduced by a future
-//! refactor (e.g. one that made `try_format_standard` share machinery with
-//! `format_customized`, which *does* allocate — see `try_format`'s doc comment) would
-//! show up as a large, easily-caught relative jump on `bench_try_format` specifically.
-//! `bench_to_string_format` keeps the same 5% threshold used by `benches/parse_gungraun.rs`
-//! for its own, unavoidably-allocating baseline.
+//! `bench_try_format` uses a much tighter soft limit than `bench_to_string_format` so an
+//! accidental allocation creeping into `try_format_standard` shows up as a large,
+//! easily-caught relative jump rather than being absorbed into a loose threshold.
 //!
-//! The `TimeSpan` value used (`from_dhms_milli(1, 2, 3, 4, 500)`) has a nonzero day
-//! component and a nonzero fractional-second component, so all three formats produce
-//! non-trivial output — including the day segment and, for "c"/"G", the
-//! fractional-seconds segment — rather than a short/degenerate case that could mask
-//! allocation overhead behind a tiny fixed cost.
+//! The sample value (1d 2h 3m 4.5s) gives every format non-trivial output, including
+//! the day segment and, for "c"/"G", the fractional-seconds segment.
 use std::hint::black_box;
 
 use cs_timespan_automated_v1::TimeSpan;
