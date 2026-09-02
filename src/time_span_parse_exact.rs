@@ -65,6 +65,20 @@ impl CharTokenizer {
     fn next_char(&mut self) -> char {
         self.pos += 1;
         let idx = self.pos;
+        // `idx >= 0` (checked below) rules out sign loss. Truncation: `idx` grows by 1
+        // per call, driven by walking `format`/matching digits against `input` — both
+        // real `&str`s a caller actually allocated, so `idx` tracks their length. A
+        // format/input string long enough to push `idx` anywhere near `u32::MAX` would
+        // need multiple gigabytes just to exist as a `&str`/`Vec<char>` in the first
+        // place, and (per `TimeSpanTokenizer`'s own `int`-typed `_pos`, TimeSpanParse.cs
+        // relies on C# strings being `int`-length-capped, ~2^31) has no upstream C#
+        // counterpart input to even diverge from.
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "idx >= 0 rules out sign loss; idx tracks a real input/format string's \
+                      length, never remotely close to u32::MAX in any realistic invocation"
+        )]
         if idx >= 0 && (idx as usize) < self.chars.len() {
             self.chars[idx as usize]
         } else {
@@ -82,6 +96,14 @@ impl CharTokenizer {
     }
 
     /// Cf. TimeSpanTokenizer.EOL (TimeSpanParse.cs#L258).
+    // `chars: Vec<char>` can never exceed `isize::MAX` bytes (Rust's allocator invariant
+    // enforced on every push/collect) and `char` is always 4 bytes, so `chars.len() <=
+    // isize::MAX / 4` — safely below `i64::MAX` on any platform.
+    #[allow(
+        clippy::cast_possible_wrap,
+        reason = "a Vec<char> can never hold enough elements (isize::MAX/4, char being 4 \
+                  bytes) for this usize -> i64 widening to wrap"
+    )]
     fn eol(&self) -> bool {
         self.pos >= self.chars.len() as i64 - 1
     }
@@ -251,6 +273,14 @@ pub(crate) fn parse_exact(
         let token_len: usize = match ch {
             'h' => {
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Per the comment above: even if `len` were huge enough to truncate this
+                // cast, `len > 2` below (using the real, untruncated `usize`) still
+                // rejects the parse — the eager match's result is discarded either way.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len > 2 below always rejects an oversized len using the real \
+                              usize value, regardless of what this cast truncates to"
+                )]
                 let (value, ok) = digits_1_or_2(&mut tokenizer, len as u32);
                 if len > 2 || seen_hh || !ok {
                     return Err(TimeSpanError::InvalidFormat);
@@ -261,6 +291,13 @@ pub(crate) fn parse_exact(
             }
             'm' => {
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Cf. the 'h' arm above: `len > 2` below always rejects on the real,
+                // untruncated `usize`, so a truncated cast here can't change the outcome.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len > 2 below always rejects an oversized len using the real \
+                              usize value, regardless of what this cast truncates to"
+                )]
                 let (value, ok) = digits_1_or_2(&mut tokenizer, len as u32);
                 if len > 2 || seen_mm || !ok {
                     return Err(TimeSpanError::InvalidFormat);
@@ -271,6 +308,13 @@ pub(crate) fn parse_exact(
             }
             's' => {
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Cf. the 'h' arm above: `len > 2` below always rejects on the real,
+                // untruncated `usize`, so a truncated cast here can't change the outcome.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len > 2 below always rejects an oversized len using the real \
+                              usize value, regardless of what this cast truncates to"
+                )]
                 let (value, ok) = digits_1_or_2(&mut tokenizer, len as u32);
                 if len > 2 || seen_ss || !ok {
                     return Err(TimeSpanError::InvalidFormat);
@@ -281,9 +325,32 @@ pub(crate) fn parse_exact(
             }
             'f' => {
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Unlike the 'h'/'m'/'s' arms above, this cast *is* the only gate on
+                // `len` here — but `len` is bounded by `format_chars.len() - i`, i.e. by
+                // how many repeated 'f' characters actually exist in `format`. Reaching
+                // anywhere near `u32::MAX` would require a `format` string of several
+                // gigabytes, which — besides being unconstructable in any real
+                // invocation — has no upstream counterpart to diverge from either:
+                // `TimeSpanParse.cs`/`ParseRepeatPattern` operate on a C# `string`, whose
+                // `Length` is a hard `int`-capped ~2^31, so no format string long enough
+                // to trigger this even exists on the C# side.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 if len as u32 > MAX_FRACTION_DIGITS || seen_ff {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                // Cf. the allow above: same len/format-length reasoning applies to both
+                // casts here.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 let (zeroes, value, ok) =
                     parse_exact_digits(&mut tokenizer, len as u32, len as u32);
                 if !ok {
@@ -296,12 +363,28 @@ pub(crate) fn parse_exact(
             }
             'F' => {
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Cf. the 'f' arm above: same len/format-length reasoning applies.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 if len as u32 > MAX_FRACTION_DIGITS || seen_ff {
                     return Err(TimeSpanError::InvalidFormat);
                 }
                 // Cf. TimeSpanParse.cs#L1317: the success/failure return of ParseExactDigits
                 // is intentionally discarded here — 'F' digits are optional (0..=len of
                 // them may actually be present), unlike 'f'.
+                //
+                // Cf. the 'f' arm above: same len/format-length reasoning applies to both
+                // casts here.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 let (zeroes, value, _ok) =
                     parse_exact_digits(&mut tokenizer, len as u32, len as u32);
                 leading_zeroes = zeroes;
@@ -311,6 +394,15 @@ pub(crate) fn parse_exact(
             }
             'd' => {
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Cf. the comment above the 'h'/'m'/'s' arms: even if `len` were huge
+                // enough to truncate this cast, `len > 8` below (using the real,
+                // untruncated `usize`) still rejects the parse — the eager match's
+                // result is discarded either way.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len > 8 below always rejects an oversized len using the real \
+                              usize value, regardless of what this cast truncates to"
+                )]
                 let (min, max) = if len < 2 {
                     (1u32, 8u32)
                 } else {

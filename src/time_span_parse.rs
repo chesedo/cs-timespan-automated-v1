@@ -660,7 +660,22 @@ fn normalize_fraction(tok: NumTok) -> Result<i64, TimeSpanError> {
             let power_index = total_digits - MAX_FRACTION_DIGITS;
             // Unsigned division, rounding away from zero.
             let power = 10u64.pow(power_index);
+            // `tok.value` is built purely by accumulating ASCII digits (`Lexer::next`,
+            // this file) and bounded to `0..=TOKEN_MAX` there — it can never be negative.
+            #[allow(
+                clippy::cast_sign_loss,
+                reason = "tok.value is digit-accumulated (Lexer::next) and TOKEN_MAX-bounded, \
+                          so it's always >= 0"
+            )]
             let value = (tok.value as u64 + power / 2) / power;
+            // This `Greater` arm only runs when `total_digits > MAX_FRACTION_DIGITS`, so
+            // `power_index >= 1` and `power >= 10`; dividing a `<= TOKEN_MAX` (~2.68e8)
+            // numerator by that keeps `value` far under `i64::MAX`.
+            #[allow(
+                clippy::cast_possible_wrap,
+                reason = "value is tok.value (<= TOKEN_MAX) rounded-divided by a power of \
+                          ten >= 10, always far under i64::MAX"
+            )]
             Ok(value as i64)
         }
     }
