@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod error;
 mod time_span;
 mod time_span_format_custom;
