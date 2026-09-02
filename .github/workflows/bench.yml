@@ -16,6 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      # Pinned independently of CARGO_TARGET_DIR (which the base-branch step
+      # below overrides to force a separate build) so both steps still read
+      # and write gungraun's saved baseline data (instruction counts, not
+      # compiled binaries) at the same location. Gungraun resolves its
+      # baseline storage dir from GUNGRAUN_HOME first and only falls back to
+      # "$CARGO_TARGET_DIR/gungraun" when GUNGRAUN_HOME is unset — pinning it
+      # here keeps that resolved path identical to today's default across
+      # both steps even after CARGO_TARGET_DIR diverges between them.
+      GUNGRAUN_HOME: ${{ github.workspace }}/target/gungraun
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,6 +53,16 @@ jobs:
       - name: Benchmark base branch
         id: base
         if: steps.benches.outputs.has_benches == 'true'
+        # Built with its own CARGO_TARGET_DIR (separate from the job-level one
+        # used by the PR-head step below) so the two builds can never collide.
+        # Base and head share the same package name+version, so a shared
+        # target dir lets Cargo's fingerprinting treat the head build as
+        # already-built and silently skip it — gungraun only compares saved
+        # baseline data (see GUNGRAUN_HOME above), not the compiled binaries
+        # directly, so there's no reason for the two builds to share a target
+        # dir at all.
+        env:
+          CARGO_TARGET_DIR: /tmp/base/target
         run: |
           git worktree add /tmp/base "${{ github.event.pull_request.base.sha }}"
           base_names=$(cd /tmp/base/benches 2>/dev/null && ls *_gungraun.rs 2>/dev/null | sed 's/\.rs$//' || true)
