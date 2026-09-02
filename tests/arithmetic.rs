@@ -91,7 +91,7 @@ fn add_operator_basic() {
 ///
 /// Cf. TimeSpan.cs#L893-L905
 #[test]
-#[should_panic]
+#[should_panic(expected = "TimeSpan addition overflowed its representable range")]
 fn add_operator_overflow_panics() {
     let _ = TimeSpan::MAX + TimeSpan::from_ticks(1);
 }
@@ -112,7 +112,7 @@ fn sub_operator_basic() {
 ///
 /// Cf. TimeSpan.cs#L877-L889
 #[test]
-#[should_panic]
+#[should_panic(expected = "TimeSpan subtraction overflowed its representable range")]
 fn sub_operator_overflow_panics() {
     let _ = TimeSpan::MIN - TimeSpan::from_ticks(1);
 }
@@ -315,7 +315,9 @@ fn checked_mul_overflow() {
 ///
 /// Cf. TimeSpanTests.cs#L1761-L1766 (`OverflowingMultiplication`)
 #[test]
-#[should_panic]
+#[should_panic(
+    expected = "TimeSpan multiplication overflowed its representable range, or factor was NaN"
+)]
 fn mul_operator_overflow_panics() {
     let _ = TimeSpan::MAX * 1.000000001;
 }
@@ -325,7 +327,9 @@ fn mul_operator_overflow_panics() {
 ///
 /// Cf. TimeSpanTests.cs#L1761-L1766 (`OverflowingMultiplication`)
 #[test]
-#[should_panic]
+#[should_panic(
+    expected = "TimeSpan multiplication overflowed its representable range, or factor was NaN"
+)]
 fn mul_operator_reversed_overflow_panics() {
     let _ = -1.000000001 * TimeSpan::MAX;
 }
@@ -341,14 +345,18 @@ fn checked_mul_nan() {
 
 /// Cf. TimeSpanTests.cs#L1768-L1773 (`NaNMultiplication`)
 #[test]
-#[should_panic]
+#[should_panic(
+    expected = "TimeSpan multiplication overflowed its representable range, or factor was NaN"
+)]
 fn mul_operator_nan_panics() {
     let _ = TimeSpan::from_days(1.0).unwrap() * f64::NAN;
 }
 
 /// Cf. TimeSpanTests.cs#L1768-L1773 (`NaNMultiplication`)
 #[test]
-#[should_panic]
+#[should_panic(
+    expected = "TimeSpan multiplication overflowed its representable range, or factor was NaN"
+)]
 fn mul_operator_reversed_nan_panics() {
     let _ = f64::NAN * TimeSpan::from_days(1.0).unwrap();
 }
@@ -420,7 +428,9 @@ fn checked_div_by_zero() {
 
 /// Cf. TimeSpanTests.cs#L1783-L1792 (`DivideByZero`)
 #[test]
-#[should_panic]
+#[should_panic(
+    expected = "TimeSpan division overflowed its representable range, or divisor was NaN"
+)]
 fn div_operator_by_zero_panics() {
     let _ = TimeSpan::from_days(1.0).unwrap() / 0.0;
 }
@@ -436,7 +446,9 @@ fn checked_div_nan() {
 
 /// Cf. TimeSpanTests.cs#L1794-L1798 (`NaNDivision`)
 #[test]
-#[should_panic]
+#[should_panic(
+    expected = "TimeSpan division overflowed its representable range, or divisor was NaN"
+)]
 fn div_operator_nan_panics() {
     let _ = TimeSpan::from_days(1.0).unwrap() / f64::NAN;
 }
