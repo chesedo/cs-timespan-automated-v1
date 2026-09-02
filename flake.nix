@@ -17,7 +17,18 @@
         rustToolchain = fenix.packages.${system}.stable.toolchain;
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-        src = craneLib.cleanCargoSource ./.;
+        # cleanCargoSource strips anything that isn't Cargo-source-shaped, but
+        # src/lib.rs pulls in README.md via `include_str!` for its crate-level
+        # doc comment (also exercising the README's own code block as a real
+        # doctest) — that file needs to stay in the Nix-sandboxed build's source
+        # tree or `cargo test` fails to find it there despite building fine
+        # locally.
+        src = pkgs.lib.fileset.toSource {
+          root = ./.;
+          fileset = pkgs.lib.fileset.union
+            (craneLib.fileset.commonCargoSources ./.)
+            ./README.md;
+        };
         commonArgs = { inherit src; };
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
