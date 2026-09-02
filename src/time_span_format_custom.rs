@@ -154,6 +154,11 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                // `len <= 2` is already established by the check just above.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len <= 2 is already checked above, so this cast is always exact"
+                )]
                 format_digits(&mut result, hours, len as u32);
                 len
             }
@@ -162,6 +167,11 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                // `len <= 2` is already established by the check just above.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len <= 2 is already checked above, so this cast is always exact"
+                )]
                 format_digits(&mut result, minutes, len as u32);
                 len
             }
@@ -170,6 +180,11 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                // `len <= 2` is already established by the check just above.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len <= 2 is already checked above, so this cast is always exact"
+                )]
                 format_digits(&mut result, seconds, len as u32);
                 len
             }
@@ -177,11 +192,40 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 // The fraction of a second in single-digit precision. The remaining
                 // digits are truncated.
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Unlike the 'h'/'m'/'s' arms above, this cast *is* the only gate on
+                // `len` here — but `len` is bounded by `format_chars.len() - i`, i.e. by
+                // how many repeated 'f' characters actually exist in `format`. Reaching
+                // anywhere near `u32::MAX` would require a `format` string of several
+                // gigabytes, which — besides being unconstructable in any real
+                // invocation — has no upstream counterpart to diverge from either:
+                // `TimeSpanFormat.cs`/`ParseRepeatPattern` operate on a C# `string`,
+                // whose `Length` is a hard `int`-capped ~2^31, so no format string long
+                // enough to trigger this even exists on the C# side.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 if len as u32 > MAX_FRACTION_DIGITS {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                // Cf. the allow above: same len/format-length reasoning applies to both
+                // casts here.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 let tmp =
                     fraction / pow10_up_to_max_fraction_digits(MAX_FRACTION_DIGITS - len as u32);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 format_digits(&mut result, tmp, len as u32);
                 len
             }
@@ -189,11 +233,31 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 // Displays the most significant digits of the seconds fraction.
                 // Nothing is displayed if the trimmed value is empty.
                 let len = parse_repeat_pattern(&format_chars, i, ch);
+                // Cf. the 'f' arm above: same len/format-length reasoning applies to
+                // every cast of `len` in this arm.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 if len as u32 > MAX_FRACTION_DIGITS {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 let mut tmp =
                     fraction / pow10_up_to_max_fraction_digits(MAX_FRACTION_DIGITS - len as u32);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len is bounded by format's own (realistically tiny) length; \
+                              overflowing u32 needs a multi-gigabyte format string, which \
+                              has no possible C# counterpart (string.Length is int-capped)"
+                )]
                 let mut effective_digits = len as u32;
                 while effective_digits > 0 {
                     if tmp % 10 == 0 {
@@ -215,6 +279,11 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 if len > 8 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
+                // `len <= 8` is already established by the check just above.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "len <= 8 is already checked above, so this cast is always exact"
+                )]
                 format_digits(&mut result, day, len as u32);
                 len
             }

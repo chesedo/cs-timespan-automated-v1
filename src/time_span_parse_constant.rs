@@ -41,15 +41,34 @@ impl StringParser {
     /// end (the sentinel every call site below relies on, same as `CharTokenizer::next_char`
     /// in `time_span_parse_exact.rs`), and stops advancing `pos` once at the end too.
     fn next_char(&mut self) {
+        // `chars: Vec<char>` can never exceed `isize::MAX` bytes (Rust's allocator
+        // invariant enforced on every push/collect) and `char` is always 4 bytes, so
+        // `chars.len() <= isize::MAX / 4` — safely below `i64::MAX` on any platform.
+        #[allow(
+            clippy::cast_possible_wrap,
+            reason = "a Vec<char> can never hold enough elements (isize::MAX/4, char being \
+                      4 bytes) for this usize -> i64 widening to wrap"
+        )]
         if self.pos < self.chars.len() as i64 {
             self.pos += 1;
         }
         let idx = self.pos;
-        self.ch = if idx >= 0 && (idx as usize) < self.chars.len() {
+        // `idx` never exceeds `chars.len()`: the guard above only increments `pos` while
+        // it's less than `chars.len()`, so `pos` (and thus `idx`) never grows past it —
+        // and `chars.len()` already fits `usize` as an existing Vec's own length. `idx >=
+        // 0` is checked immediately before each cast below, ruling out sign loss.
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "idx >= 0 is checked right before each cast, and next_char's own bound \
+                      keeps idx <= chars.len(), which fits usize as an existing Vec's length"
+        )]
+        let ch = if idx >= 0 && (idx as usize) < self.chars.len() {
             self.chars[idx as usize]
         } else {
             '\0'
         };
+        self.ch = ch;
     }
 
     /// Looks ahead (without consuming) for the first non-digit character from the current
@@ -57,6 +76,16 @@ impl StringParser {
     ///
     /// Cf. StringParser.NextNonDigit (TimeSpanParse.cs#L1489-1493)
     fn next_non_digit(&self) -> char {
+        // Cf. `next_char` above: `pos` never exceeds `chars.len()`, so the same
+        // idx-fits-usize reasoning applies; the `pos < 0` branch here itself rules out
+        // sign loss on the other side of the cast.
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "self.pos < 0 is handled by the branch above; when it isn't, next_char's \
+                      own bound keeps pos <= chars.len(), which fits usize as an existing \
+                      Vec's length"
+        )]
         let start = if self.pos < 0 { 0 } else { self.pos as usize }.min(self.chars.len());
         self.chars[start..]
             .iter()
@@ -181,6 +210,16 @@ pub(crate) fn parse_constant(input: &str) -> Result<TimeSpan, TimeSpanError> {
     }
 
     parser.skip_blanks();
+    // Cf. `StringParser::next_char` above: `pos` never exceeds `chars.len()`, and is
+    // never negative once `StringParser::new` has made its first `next_char()` call
+    // (which it always does, in its own constructor).
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "pos is never negative past StringParser::new's first next_char() call, \
+                  and next_char's own bound keeps it <= chars.len(), which fits usize as an \
+                  existing Vec's length"
+    )]
     if (parser.pos as usize) < parser.chars.len() {
         return Err(TimeSpanError::InvalidFormat);
     }
