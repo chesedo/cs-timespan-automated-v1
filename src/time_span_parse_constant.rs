@@ -87,7 +87,7 @@ impl StringParser {
             if (value & 0xF000_0000) != 0 {
                 return Err(TimeSpanError::Overflow);
             }
-            value = value * 10 + self.ch.to_digit(10).unwrap() as i64;
+            value = value * 10 + i64::from(self.ch.to_digit(10).unwrap());
             self.next_char();
         }
 
@@ -130,7 +130,7 @@ impl StringParser {
                 let mut fraction_place = TimeSpan::TICKS_PER_SECOND;
                 while fraction_place > 1 && self.ch.is_ascii_digit() {
                     fraction_place /= 10;
-                    let digit = self.ch.to_digit(10).unwrap() as i64;
+                    let digit = i64::from(self.ch.to_digit(10).unwrap());
                     time = time.wrapping_add(digit.wrapping_mul(fraction_place));
                     self.next_char();
                 }
