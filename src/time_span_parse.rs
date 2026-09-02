@@ -644,8 +644,21 @@ fn normalize_fraction(tok: NumTok) -> Result<i64, TimeSpanError> {
             if tok.zeroes > MAX_FRACTION_DIGITS {
                 return Ok(0);
             }
+            // `power_index` can exceed POWERS_OF_TEN's last valid index (7) here: the
+            // tokenizer bounds `tok.value` to 9 digits (TOKEN_MAX) but not `tok.zeroes`
+            // independently, so e.g. zeroes=6 plus a 9-digit value gives total_digits=15
+            // and power_index=8. Computed directly rather than table-indexed, since the
+            // valid range for this branch (zeroes in 1..=MAX_FRACTION_DIGITS, value up to
+            // 9 digits) bounds power_index to at most 9 -- far under any risk of
+            // overflowing a u64 power of ten. C#'s `Pow10UpToMaxFractionDigits` has this
+            // identical out-of-bounds index into its own fixed-size table, guarded only by
+            // a `Debug.Assert` that doesn't suppress the span's own bounds check -- so
+            // upstream throws `IndexOutOfRangeException` for the same pathological input
+            // rather than returning gracefully. This crate's own no-panic-on-malformed-input
+            // contract is the reason to fix this, independent of C# sharing the defect.
+            let power_index = total_digits - MAX_FRACTION_DIGITS;
             // Unsigned division, rounding away from zero.
-            let power = POWERS_OF_TEN[(total_digits - MAX_FRACTION_DIGITS) as usize] as u64;
+            let power = 10u64.pow(power_index);
             let value = (tok.value as u64 + power / 2) / power;
             Ok(value as i64)
         }
