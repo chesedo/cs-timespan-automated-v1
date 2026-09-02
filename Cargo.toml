@@ -24,3 +24,8 @@ path = "benches/format_customized_gungraun.rs"
 name = "parse_exact_gungraun"
 harness = false
 path = "benches/parse_exact_gungraun.rs"
+
+[[bench]]
+name = "try_format_gungraun"
+harness = false
+path = "benches/try_format_gungraun.rs"
