@@ -60,7 +60,7 @@
 
           clippy = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-features -- -D warnings";
+            cargoClippyExtraArgs = "--all-features -- -D warnings -D clippy::pedantic";
           });
 
           test = craneLib.cargoTest (commonArgs // {

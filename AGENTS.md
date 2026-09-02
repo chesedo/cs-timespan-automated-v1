@@ -75,13 +75,15 @@ writing one feels awkward, that's a finding about the API's shape.
 
 `flake.nix` is the source of truth for checks — `.github/workflows/ci.yml`
 runs it via `nix flake check`, covering `cargo fmt --check`, `cargo
-clippy --all-features -- -D warnings`, and `cargo test --all-features`.
+clippy --all-features -- -D warnings -D clippy::pedantic`, and `cargo test
+--all-features`.
 
 - Run `nix flake check` before opening a PR.
-- `cargo fmt` / `cargo clippy --all-features` / `cargo test --all-features`
-  directly are fine for a faster inner loop, but confirm with `nix flake
-  check` before considering work done — it includes `--all-features`,
-  which plain `cargo clippy`/`cargo test` skip by default.
+- `cargo fmt` / `cargo clippy --all-features -- -D warnings -D
+  clippy::pedantic` / `cargo test --all-features` directly are fine for a
+  faster inner loop, but confirm with `nix flake check` before considering
+  work done — it includes `--all-features`, which plain `cargo
+  clippy`/`cargo test` skip by default.
 - `nix develop` drops into a devShell with the pinned Rust toolchain.
 
 ## Panics in library code
