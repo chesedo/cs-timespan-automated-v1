@@ -151,16 +151,16 @@ impl Lexer {
         let mut value = if zeroes > 0 {
             let d = self.chars[self.pos];
             self.pos += 1;
-            d.to_digit(10).unwrap() as i64
+            i64::from(d.to_digit(10).unwrap())
         } else {
-            c.to_digit(10).unwrap() as i64
+            i64::from(c.to_digit(10).unwrap())
         };
 
         while let Some(d) = self.chars.get(self.pos) {
             if !d.is_ascii_digit() {
                 break;
             }
-            value = value * 10 + d.to_digit(10).unwrap() as i64;
+            value = value * 10 + i64::from(d.to_digit(10).unwrap());
             self.pos += 1;
             if value > TOKEN_MAX {
                 return Tok::Overflow;

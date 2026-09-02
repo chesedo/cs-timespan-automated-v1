@@ -119,11 +119,13 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L698-L711 (internal `TimeToTicks`)
     fn time_to_ticks(hours: i32, minutes: i32, seconds: i32) -> Result<i64, TimeSpanError> {
-        let total_seconds = (hours as i128) * (Self::SECONDS_PER_HOUR as i128)
-            + (minutes as i128) * (Self::SECONDS_PER_MINUTE as i128)
-            + seconds as i128;
+        let total_seconds = i128::from(hours) * i128::from(Self::SECONDS_PER_HOUR)
+            + i128::from(minutes) * i128::from(Self::SECONDS_PER_MINUTE)
+            + i128::from(seconds);
 
-        if total_seconds > Self::MAX_SECONDS as i128 || total_seconds < Self::MIN_SECONDS as i128 {
+        if total_seconds > i128::from(Self::MAX_SECONDS)
+            || total_seconds < i128::from(Self::MIN_SECONDS)
+        {
             return Err(TimeSpanError::Overflow);
         }
 
@@ -142,15 +144,15 @@ impl TimeSpan {
         milliseconds: i32,
         microseconds: i32,
     ) -> Result<i64, TimeSpanError> {
-        let total_microseconds = (days as i128) * (Self::MICROSECONDS_PER_DAY as i128)
-            + (hours as i128) * (Self::MICROSECONDS_PER_HOUR as i128)
-            + (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
-            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
-            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
-            + microseconds as i128;
+        let total_microseconds = i128::from(days) * i128::from(Self::MICROSECONDS_PER_DAY)
+            + i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
+            + i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
+            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
+            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(microseconds);
 
-        if total_microseconds > Self::MAX_MICROSECONDS as i128
-            || total_microseconds < Self::MIN_MICROSECONDS as i128
+        if total_microseconds > i128::from(Self::MAX_MICROSECONDS)
+            || total_microseconds < i128::from(Self::MIN_MICROSECONDS)
         {
             return Err(TimeSpanError::Overflow);
         }
@@ -184,7 +186,7 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L312
     #[must_use]
     pub fn hours(&self) -> i32 {
-        (self.ticks / Self::TICKS_PER_HOUR % Self::HOURS_PER_DAY as i64) as i32
+        (self.ticks / Self::TICKS_PER_HOUR % i64::from(Self::HOURS_PER_DAY)) as i32
     }
 
     /// Cf. TimeSpan.cs#L334
@@ -580,7 +582,7 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L455
     pub fn from_days_i32(days: i32) -> Result<Self, TimeSpanError> {
         Self::from_units(
-            days as i64,
+            i64::from(days),
             Self::TICKS_PER_DAY,
             Self::MIN_DAYS,
             Self::MAX_DAYS,
@@ -596,8 +598,8 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L613-L620 (private `FromMicroseconds(Int128)`)
     fn from_microseconds_i128(total_microseconds: i128) -> Result<Self, TimeSpanError> {
-        if total_microseconds > Self::MAX_MICROSECONDS as i128
-            || total_microseconds < Self::MIN_MICROSECONDS as i128
+        if total_microseconds > i128::from(Self::MAX_MICROSECONDS)
+            || total_microseconds < i128::from(Self::MIN_MICROSECONDS)
         {
             return Err(TimeSpanError::Overflow);
         }
@@ -623,12 +625,12 @@ impl TimeSpan {
         milliseconds: i64,
         microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = (days as i128) * (Self::MICROSECONDS_PER_DAY as i128)
-            + (hours as i128) * (Self::MICROSECONDS_PER_HOUR as i128)
-            + (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
-            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
-            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
-            + microseconds as i128;
+        let total_microseconds = i128::from(days) * i128::from(Self::MICROSECONDS_PER_DAY)
+            + i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
+            + i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
+            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
+            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(microseconds);
 
         Self::from_microseconds_i128(total_microseconds)
     }
@@ -657,7 +659,7 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L492
     pub fn from_hours_i32(hours: i32) -> Result<Self, TimeSpanError> {
         Self::from_units(
-            hours as i64,
+            i64::from(hours),
             Self::TICKS_PER_HOUR,
             Self::MIN_HOURS,
             Self::MAX_HOURS,
@@ -678,11 +680,11 @@ impl TimeSpan {
         milliseconds: i64,
         microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = (hours as i128) * (Self::MICROSECONDS_PER_HOUR as i128)
-            + (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
-            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
-            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
-            + microseconds as i128;
+        let total_microseconds = i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
+            + i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
+            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
+            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(microseconds);
 
         Self::from_microseconds_i128(total_microseconds)
     }
@@ -732,10 +734,10 @@ impl TimeSpan {
         milliseconds: i64,
         microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = (minutes as i128) * (Self::MICROSECONDS_PER_MINUTE as i128)
-            + (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
-            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
-            + microseconds as i128;
+        let total_microseconds = i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
+            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
+            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(microseconds);
 
         Self::from_microseconds_i128(total_microseconds)
     }
@@ -783,9 +785,9 @@ impl TimeSpan {
         milliseconds: i64,
         microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = (seconds as i128) * (Self::MICROSECONDS_PER_SECOND as i128)
-            + (milliseconds as i128) * (Self::MICROSECONDS_PER_MILLISECOND as i128)
-            + microseconds as i128;
+        let total_microseconds = i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
+            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(microseconds);
 
         Self::from_microseconds_i128(total_microseconds)
     }
@@ -832,9 +834,9 @@ impl TimeSpan {
         milliseconds: i64,
         microseconds: i64,
     ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = (milliseconds as i128)
-            * (Self::MICROSECONDS_PER_MILLISECOND as i128)
-            + microseconds as i128;
+        let total_microseconds = i128::from(milliseconds)
+            * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(microseconds);
 
         Self::from_microseconds_i128(total_microseconds)
     }
@@ -961,12 +963,12 @@ impl TimeSpan {
 
         let negative = self.ticks < 0;
         let abs_ticks: i128 = if negative {
-            -(self.ticks as i128)
+            -i128::from(self.ticks)
         } else {
-            self.ticks as i128
+            i128::from(self.ticks)
         };
 
-        let ticks_per_second = Self::TICKS_PER_SECOND as i128;
+        let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
         let fraction = (abs_ticks % ticks_per_second) as u32;
         let total_seconds = abs_ticks / ticks_per_second;
 
@@ -1294,12 +1296,12 @@ impl TimeSpan {
     ) -> Result<usize, TimeSpanError> {
         let negative = self.ticks < 0;
         let abs_ticks: i128 = if negative {
-            -(self.ticks as i128)
+            -i128::from(self.ticks)
         } else {
-            self.ticks as i128
+            i128::from(self.ticks)
         };
 
-        let ticks_per_second = Self::TICKS_PER_SECOND as i128;
+        let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
         let mut fraction = (abs_ticks % ticks_per_second) as u32;
         let total_seconds = abs_ticks / ticks_per_second;
 
@@ -1401,7 +1403,7 @@ impl TimeSpan {
             pos = Self::write_padded_digits(
                 destination,
                 pos,
-                fraction as i128,
+                i128::from(fraction),
                 fraction_digits as usize,
             );
         }
@@ -1600,12 +1602,12 @@ impl std::fmt::Display for TimeSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let negative = self.ticks < 0;
         let abs_ticks: i128 = if negative {
-            -(self.ticks as i128)
+            -i128::from(self.ticks)
         } else {
-            self.ticks as i128
+            i128::from(self.ticks)
         };
 
-        let ticks_per_second = Self::TICKS_PER_SECOND as i128;
+        let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
         let fraction = (abs_ticks % ticks_per_second) as u32;
         let total_seconds = abs_ticks / ticks_per_second;
 

@@ -105,7 +105,7 @@ fn parse_exact_digits(tokenizer: &mut CharTokenizer, min: u32, max: u32) -> (u32
             tokenizer.back_one();
             break;
         }
-        result = result * 10 + ch.to_digit(10).unwrap() as i64;
+        result = result * 10 + i64::from(ch.to_digit(10).unwrap());
         if result == 0 {
             zeroes += 1;
         }
