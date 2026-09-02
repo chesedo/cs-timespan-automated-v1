@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+[dev-dependencies]
+# Pinned to match the gungraun-runner version in flake.nix's gungraunRunner derivation —
+# keep these two in lockstep.
+gungraun = "=0.19.3"
+
+[[bench]]
+name = "parse_gungraun"
+harness = false
+path = "benches/parse_gungraun.rs"
