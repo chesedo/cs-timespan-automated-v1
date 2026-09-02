@@ -826,6 +826,32 @@ fn parse_different_length_fraction_with_leading_zeros() {
     }
 }
 
+/// Regression test for a `normalize_fraction` panic on pathological fraction tokens:
+/// a fraction with enough leading zeros *and* enough significant digits pushes
+/// `total_digits - MAX_FRACTION_DIGITS` past 7, indexing `POWERS_OF_TEN` (an 8-element
+/// array, valid indices 0..=7) out of bounds. C#'s `Pow10UpToMaxFractionDigits` has the
+/// identical unbounded index into its own 8-element `powersOfTen` span, guarded only by
+/// a `Debug.Assert` that doesn't suppress the span's own (always-on) bounds check — so
+/// upstream would throw `IndexOutOfRangeException` for this exact input too, rather than
+/// the `FormatException`/`OverflowException` its documented `Parse` contract promises.
+/// This crate's own contract (no panics on malformed input, always a `Result`) is the
+/// reason to fix this independent of C# sharing the same latent defect.
+#[test]
+fn parse_pathological_fraction_does_not_panic() {
+    // zeroes=6, value=268_435_455 (9 digits) => total_digits=15, so the naive
+    // `POWERS_OF_TEN[total_digits - MAX_FRACTION_DIGITS]` lookup would need index 8,
+    // one past the array's last valid index (7).
+    //
+    // Expected: the fraction "000000268435455" is 0.000000268435455 seconds, which
+    // rounded to 7-digit tick precision (round(0.000000268435455 * 1e7) = round(2.68435455))
+    // is 3 ticks. h=1,m=2,s=3 contributes 3_723_000ms * 10_000 ticks/ms = 37_230_000_000
+    // ticks, plus the 3 fraction ticks.
+    assert_eq!(
+        Ok(TimeSpan::from_ticks(37_230_000_003)),
+        "1:2:3.000000268435455".parse::<TimeSpan>()
+    );
+}
+
 /// Cf. TimeSpanTests.cs#L1162-L1206 (`ParseExact_Valid_TestData`), restricted to the
 /// "Custom timespan formats" rows (TimeSpanTests.cs#L1191-L1205) — the standard
 /// single-letter-format rows ("c"/"t"/"T"/"g"/"G", TimeSpanTests.cs#L1164-L1189) are out of
