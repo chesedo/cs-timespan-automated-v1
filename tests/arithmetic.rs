@@ -365,7 +365,7 @@ fn mul_operator_reversed_nan_panics() {
 /// (round-half-to-even), the opposite of Rust's `f64::round()` (round-half-away-from-
 /// zero). `5 ticks * 0.5` raw-multiplies to exactly `2.5`, an exact `.5`-tick
 /// midpoint: `f64::round()` would give `3.0`, but C# — and this method — must give
-/// `2.0` (the nearest even integer). This is the specific divergence this issue was
+/// `2.0` (the nearest even integer). This is the specific divergence issue #51 was
 /// filed to close.
 ///
 /// Cf. TimeSpan.cs#L915-L917 (`Math.Round(timeSpan.Ticks * factor)`)
