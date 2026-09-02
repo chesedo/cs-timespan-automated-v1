@@ -14,3 +14,8 @@ gungraun = "=0.19.3"
 name = "parse_gungraun"
 harness = false
 path = "benches/parse_gungraun.rs"
+
+[[bench]]
+name = "format_customized_gungraun"
+harness = false
+path = "benches/format_customized_gungraun.rs"
