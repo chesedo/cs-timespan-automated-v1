@@ -52,10 +52,48 @@ fn bench_to_string_format(format: &str) -> String {
     black_box(ts.to_string_format(black_box(format)).unwrap())
 }
 
-library_benchmark_group!(name = try_format_group, benchmarks = bench_try_format);
+// `bench_try_format`/`bench_to_string_format` above vary the *format* on one fixed,
+// small, ordinary value. These two vary the *value* instead, at a fixed format ("c",
+// the `Display`/default format), covering the zero value, a value with no day
+// component, a negative value with a day and fraction, and `TimeSpan::MIN`/`MAX` — the
+// one case where `Display`/`format_general` take a documented special path: the doc
+// comment directly above `impl std::fmt::Display for TimeSpan` in `src/time_span.rs`
+// explains that `ticks` is widened to `i128` before negating specifically because
+// `-i64::MIN` overflows `i64`. No other benchmark in this crate exercises that
+// widening path.
+//
+// `TimeSpan::MIN`'s "c" output, `"-10675199.02:48:05.4775808"`, is 26 bytes — it fits
+// the existing 32-byte buffer used above without any buffer-size change.
+#[library_benchmark(config = LibraryBenchmarkConfig::default()
+    .tool(Callgrind::default().soft_limits([(EventKind::Ir, 2.0)])))]
+#[bench::zero(TimeSpan::ZERO)]
+#[bench::no_days(TimeSpan::from_hms(2, 3, 4).unwrap())]
+#[bench::negative(-TimeSpan::from_dhms_milli(1, 2, 3, 4, 500).unwrap())]
+#[bench::min(TimeSpan::MIN)]
+#[bench::max(TimeSpan::MAX)]
+fn bench_try_format_by_value(ts: TimeSpan) -> usize {
+    let mut buf = [0u8; 32];
+    black_box(black_box(ts).try_format(black_box(&mut buf), "c").unwrap())
+}
+
+#[library_benchmark(config = LibraryBenchmarkConfig::default()
+    .tool(Callgrind::default().soft_limits([(EventKind::Ir, 5.0)])))]
+#[bench::zero(TimeSpan::ZERO)]
+#[bench::no_days(TimeSpan::from_hms(2, 3, 4).unwrap())]
+#[bench::negative(-TimeSpan::from_dhms_milli(1, 2, 3, 4, 500).unwrap())]
+#[bench::min(TimeSpan::MIN)]
+#[bench::max(TimeSpan::MAX)]
+fn bench_to_string_format_by_value(ts: TimeSpan) -> String {
+    black_box(black_box(ts).to_string_format("c").unwrap())
+}
+
+library_benchmark_group!(
+    name = try_format_group,
+    benchmarks = [bench_try_format, bench_try_format_by_value]
+);
 library_benchmark_group!(
     name = to_string_format_group,
-    benchmarks = bench_to_string_format
+    benchmarks = [bench_to_string_format, bench_to_string_format_by_value]
 );
 
 main!(
