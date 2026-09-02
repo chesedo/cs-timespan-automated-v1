@@ -13,6 +13,9 @@ use gungraun::{Callgrind, EventKind};
 #[library_benchmark]
 // Minimal: a single integer -> `process_d` (days only).
 #[bench::single_integer("3")]
+// Bare-days boundary value at TimeSpan::MAX's day count -> `process_d`, but at the
+// realistic upper bound rather than the trivial `single_integer` case.
+#[bench::max_days_boundary("10675199")]
 // Two components -> `process_hm` (hours:minutes).
 #[bench::two_components("02:03")]
 // Three components -> `process_hm_s_d` (hours:minutes:seconds, or days:hours:minutes).
@@ -23,6 +26,13 @@ use gungraun::{Callgrind, EventKind};
 #[bench::full_five_component("1.02:03:04.5000000")]
 // Same full form, negated, to exercise the sign-handling path separately.
 #[bench::negative_five_component("-1.02:03:04.5000000")]
+// Colon-separated day component (":" is unconditionally a valid day/hour separator for
+// lenient Parse, not just the invariant-specific "." used above) -> exercises the
+// `is_day_hour_sep` branch the other five-component cases don't.
+#[bench::day_colon_separator("6:12:14:45.348")]
+// TimeSpan::MIN's exact Display/"c"-format string, round-tripped back through lenient
+// Parse -> the one value whose negation takes the documented i128-widening special path.
+#[bench::min_boundary("-10675199.02:48:05.4775808")]
 fn bench_parse(input: &str) -> Result<TimeSpan, TimeSpanError> {
     black_box(black_box(input).parse::<TimeSpan>())
 }
