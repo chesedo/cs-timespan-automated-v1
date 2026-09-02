@@ -26,7 +26,7 @@ use std::fmt;
 ///   format string vs. a correctly-formatted result that doesn't fit).
 ///
 /// Two C# failure modes have no Rust equivalent at all: `CompareTo(object)`'s
-/// "must be TimeSpan" `ArgumentException` (Rust has no dynamically-typed `object`
+/// "must be `TimeSpan`" `ArgumentException` (Rust has no dynamically-typed `object`
 /// overload to port — `Ord`/`PartialOrd` replace it), and `TimeSpanStyles` validation
 /// (an out-of-range enum value is unrepresentable in Rust's type system in the first
 /// place).

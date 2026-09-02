@@ -164,66 +164,79 @@ impl TimeSpan {
     /// alias for this constructor (TimeSpan.cs#L695).
     ///
     /// Cf. TimeSpan.cs#L239-L242
+    #[must_use]
     pub const fn from_ticks(ticks: i64) -> Self {
         TimeSpan { ticks }
     }
 
     /// Cf. TimeSpan.cs#L308
+    #[must_use]
     pub const fn ticks(&self) -> i64 {
         self.ticks
     }
 
     /// Cf. TimeSpan.cs#L310
+    #[must_use]
     pub fn days(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_DAY) as i32
     }
 
     /// Cf. TimeSpan.cs#L312
+    #[must_use]
     pub fn hours(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_HOUR % Self::HOURS_PER_DAY as i64) as i32
     }
 
     /// Cf. TimeSpan.cs#L334
+    #[must_use]
     pub fn minutes(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_MINUTE % Self::MINUTES_PER_HOUR) as i32
     }
 
     /// Cf. TimeSpan.cs#L336
+    #[must_use]
     pub fn seconds(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_SECOND % Self::SECONDS_PER_MINUTE) as i32
     }
 
     /// Cf. TimeSpan.cs#L314
+    #[must_use]
     pub fn milliseconds(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_MILLISECOND % Self::MILLISECONDS_PER_SECOND) as i32
     }
 
     /// Cf. TimeSpan.cs#L316-L323
+    #[must_use]
     pub fn microseconds(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_MICROSECOND % Self::MICROSECONDS_PER_MILLISECOND) as i32
     }
 
     /// Cf. TimeSpan.cs#L325-L332
+    #[must_use]
     pub fn nanoseconds(&self) -> i32 {
         (self.ticks % Self::TICKS_PER_MICROSECOND * Self::NANOSECONDS_PER_TICK) as i32
     }
 
     /// Cf. TimeSpan.cs#L338
+    #[must_use]
     pub fn total_days(&self) -> f64 {
         self.ticks as f64 / Self::TICKS_PER_DAY as f64
     }
 
     /// Cf. TimeSpan.cs#L340
+    #[must_use]
     pub fn total_hours(&self) -> f64 {
         self.ticks as f64 / Self::TICKS_PER_HOUR as f64
     }
 
     /// Cf. TimeSpan.cs#L385
+    #[must_use]
     pub fn total_minutes(&self) -> f64 {
         self.ticks as f64 / Self::TICKS_PER_MINUTE as f64
     }
 
     /// Cf. TimeSpan.cs#L387
+    #[must_use]
     pub fn total_seconds(&self) -> f64 {
         self.ticks as f64 / Self::TICKS_PER_SECOND as f64
     }
@@ -232,6 +245,7 @@ impl TimeSpan {
     /// overflowing, matching the C# source's explicit clamp rather than raising.
     ///
     /// Cf. TimeSpan.cs#L342-L359
+    #[must_use]
     pub fn total_milliseconds(&self) -> f64 {
         let max = (i64::MAX / Self::TICKS_PER_MILLISECOND) as f64;
         let min = (i64::MIN / Self::TICKS_PER_MILLISECOND) as f64;
@@ -247,11 +261,13 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L361-L371
+    #[must_use]
     pub fn total_microseconds(&self) -> f64 {
         self.ticks as f64 / Self::TICKS_PER_MICROSECOND as f64
     }
 
     /// Cf. TimeSpan.cs#L373-L383
+    #[must_use]
     pub fn total_nanoseconds(&self) -> f64 {
         self.ticks as f64 * Self::NANOSECONDS_PER_TICK as f64
     }
@@ -260,6 +276,11 @@ impl TimeSpan {
     // Each becomes its own scoped work-issue once drift-scan/work-issue starts
     // iterating on this crate.
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `hours`/`minutes`/`seconds`
+    /// value falls outside the range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L244-L247
     pub fn from_hms(hours: i32, minutes: i32, seconds: i32) -> Result<Self, TimeSpanError> {
         Ok(Self {
@@ -267,6 +288,11 @@ impl TimeSpan {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
+    /// `seconds` value falls outside the range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L249-L252
     pub fn from_dhms(
         days: i32,
@@ -277,6 +303,12 @@ impl TimeSpan {
         Self::from_dhms_milli(days, hours, minutes, seconds, 0)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
+    /// `seconds`/`milliseconds` value falls outside the range representable by
+    /// `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L254-L273
     pub fn from_dhms_milli(
         days: i32,
@@ -288,6 +320,12 @@ impl TimeSpan {
         Self::from_dhms_micro(days, hours, minutes, seconds, milliseconds, 0)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
+    /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L275-L306
     pub fn from_dhms_micro(
         days: i32,
@@ -303,11 +341,13 @@ impl TimeSpan {
     }
 
     /// Cf. TimeSpan.cs#L394 (`static Compare`)
+    #[must_use]
     pub fn compare(t1: Self, t2: Self) -> Ordering {
         t1.cmp(&t2)
     }
 
     /// Cf. TimeSpan.cs#L429 (`static Equals`)
+    #[must_use]
     pub fn equals(t1: Self, t2: Self) -> bool {
         t1 == t2
     }
@@ -317,6 +357,11 @@ impl TimeSpan {
     /// overflow (identical operand signs, opposite result sign) — e.g.
     /// `TimeSpan::MAX.checked_add(TimeSpan::from_ticks(1))` errors, but
     /// `TimeSpan::MAX.checked_add(TimeSpan::MIN)` correctly returns `-1` tick.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the sum overflows the range
+    /// representable by `TimeSpan`.
     ///
     /// Cf. TimeSpan.cs#L389 (instance `Add`), TimeSpan.cs#L893-L905 (`operator+`)
     pub fn checked_add(self, rhs: Self) -> Result<Self, TimeSpanError> {
@@ -336,6 +381,11 @@ impl TimeSpan {
     /// genuine overflow (different operand signs, result sign opposite the
     /// minuend's).
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the difference overflows the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L687 (instance `Subtract`), TimeSpan.cs#L877-L889 (`operator-`)
     pub fn checked_sub(self, rhs: Self) -> Result<Self, TimeSpanError> {
         let result = self.ticks.wrapping_sub(rhs.ticks);
@@ -353,6 +403,11 @@ impl TimeSpan {
     /// `Negate()` delegates to `operator-`, which throws `OverflowException` in
     /// exactly that case.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `self` is [`TimeSpan::MIN`], whose
+    /// magnitude doesn't fit in `i64`.
+    ///
     /// Cf. TimeSpan.cs#L683 (instance `Negate`), TimeSpan.cs#L868-L875 (`operator-`)
     pub fn checked_neg(self) -> Result<Self, TimeSpanError> {
         self.ticks
@@ -363,6 +418,11 @@ impl TimeSpan {
 
     /// `TimeSpan.MinValue.Duration()` throws `OverflowException` in C#, because
     /// taking the absolute value of `long.MinValue` overflows `i64`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `self` is [`TimeSpan::MIN`], whose
+    /// magnitude doesn't fit in `i64`.
     ///
     /// Cf. TimeSpan.cs#L416-L423
     pub fn duration(self) -> Result<Self, TimeSpanError> {
@@ -380,6 +440,12 @@ impl TimeSpan {
     /// round-half-away-from-zero (`2.5f64.round() == 3.0`) — `f64::round_ties_even`
     /// is the match.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `factor` is NaN, or
+    /// [`TimeSpanError::Overflow`] if the product overflows the range representable
+    /// by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L689 (instance `Multiply`), TimeSpan.cs#L907-L919 (`operator *`)
     pub fn checked_mul(self, factor: f64) -> Result<Self, TimeSpanError> {
         if factor.is_nan() {
@@ -392,6 +458,12 @@ impl TimeSpan {
 
     /// Same round-half-to-even rationale as [`Self::checked_mul`] — see its doc
     /// comment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `divisor` is NaN, or
+    /// [`TimeSpanError::Overflow`] if the quotient overflows the range representable
+    /// by `TimeSpan`.
     ///
     /// Cf. TimeSpan.cs#L691 (instance `Divide(double)`), TimeSpan.cs#L925-L934
     /// (`operator /`)
@@ -408,6 +480,7 @@ impl TimeSpan {
     /// legitimately produce `f64::INFINITY`/`NAN` rather than erroring.
     ///
     /// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
+    #[must_use]
     pub fn divide_time_span(self, rhs: Self) -> f64 {
         self.ticks as f64 / rhs.ticks as f64
     }
@@ -433,6 +506,13 @@ impl TimeSpan {
     /// power of two and converts losslessly.
     ///
     /// Cf. TimeSpan.cs#L645-L656 (private `IntervalFromDoubleTicks`)
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against the well-known MaxTicks rounding boundary, \
+                  matching upstream's own `ticks == MaxTicks` check byte-for-byte \
+                  (TimeSpan.cs#L649-652) — not an approximate/computed value where an \
+                  epsilon comparison would be appropriate"
+    )]
     fn interval_from_double_ticks(ticks: f64) -> Result<Self, TimeSpanError> {
         let max_ticks = i64::MAX as f64;
         let min_ticks = i64::MIN as f64;
@@ -474,6 +554,12 @@ impl TimeSpan {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
+    /// [`TimeSpanError::Overflow`] if `value` scaled to ticks falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L455
     pub fn from_days(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_DAY as f64)
@@ -485,6 +571,11 @@ impl TimeSpan {
     /// multi-component constructor. Named `_i32` (rather than reusing
     /// `from_days`) because Rust doesn't support overloading by parameter type,
     /// unlike C#'s `FromDays(int)`/`FromDays(double)` pair.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `days` falls outside the whole-day range
+    /// representable by `TimeSpan`.
     ///
     /// Cf. TimeSpan.cs#L455
     pub fn from_days_i32(days: i32) -> Result<Self, TimeSpanError> {
@@ -515,6 +606,12 @@ impl TimeSpan {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
+    /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L471-L481. The C# overload takes optional trailing
     /// parameters (`hours = 0, minutes = 0, ...`); Rust has no default arguments,
     /// so all components are required here.
@@ -536,6 +633,12 @@ impl TimeSpan {
         Self::from_microseconds_i128(total_microseconds)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
+    /// [`TimeSpanError::Overflow`] if `value` scaled to ticks falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L492, TimeSpan.cs#L634
     pub fn from_hours(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_HOUR as f64)
@@ -545,6 +648,11 @@ impl TimeSpan {
     /// range via [`Self::from_units`] — distinct from [`Self::from_hours`]'s
     /// `f64`/`Interval`-based overload and [`Self::from_hours_parts`]'s
     /// multi-component constructor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `hours` falls outside the whole-hour
+    /// range representable by `TimeSpan`.
     ///
     /// Cf. TimeSpan.cs#L492
     pub fn from_hours_i32(hours: i32) -> Result<Self, TimeSpanError> {
@@ -556,6 +664,12 @@ impl TimeSpan {
         )
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `hours`/`minutes`/
+    /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L507-L516
     pub fn from_hours_parts(
         hours: i32,
@@ -573,6 +687,12 @@ impl TimeSpan {
         Self::from_microseconds_i128(total_microseconds)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
+    /// [`TimeSpanError::Overflow`] if `value` scaled to ticks falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L527, TimeSpan.cs#L681
     pub fn from_minutes(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_MINUTE as f64)
@@ -584,6 +704,11 @@ impl TimeSpan {
     /// [`Self::from_minutes_parts`]'s multi-component constructor. Takes `i64`
     /// (rather than `i32`) matching C#'s `FromMinutes(long)`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `minutes` falls outside the
+    /// whole-minute range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L527
     pub fn from_minutes_i64(minutes: i64) -> Result<Self, TimeSpanError> {
         Self::from_units(
@@ -594,6 +719,12 @@ impl TimeSpan {
         )
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `minutes`/`seconds`/
+    /// `milliseconds`/`microseconds` value falls outside the range representable by
+    /// `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L541-L549
     pub fn from_minutes_parts(
         minutes: i64,
@@ -609,6 +740,12 @@ impl TimeSpan {
         Self::from_microseconds_i128(total_microseconds)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
+    /// [`TimeSpanError::Overflow`] if `value` scaled to ticks falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L560, TimeSpan.cs#L685
     pub fn from_seconds(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_SECOND as f64)
@@ -620,6 +757,11 @@ impl TimeSpan {
     /// [`Self::from_seconds_parts`]'s multi-component constructor. Takes `i64`
     /// (rather than `i32`) matching C#'s `FromSeconds(long)`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `seconds` falls outside the
+    /// whole-second range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L560
     pub fn from_seconds_i64(seconds: i64) -> Result<Self, TimeSpanError> {
         Self::from_units(
@@ -630,6 +772,11 @@ impl TimeSpan {
         )
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `seconds`/`milliseconds`/
+    /// `microseconds` value falls outside the range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L573-L580
     pub fn from_seconds_parts(
         seconds: i64,
@@ -643,6 +790,12 @@ impl TimeSpan {
         Self::from_microseconds_i128(total_microseconds)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
+    /// [`TimeSpanError::Overflow`] if `value` scaled to ticks falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L591-L592, TimeSpan.cs#L658
     pub fn from_milliseconds(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_MILLISECOND as f64)
@@ -654,6 +807,11 @@ impl TimeSpan {
     /// [`Self::from_milliseconds_parts`]'s multi-component constructor. Takes
     /// `i64` (rather than `i32`) matching C#'s `FromMilliseconds(long)`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `milliseconds` falls outside the
+    /// whole-millisecond range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L591-L592
     pub fn from_milliseconds_i64(milliseconds: i64) -> Result<Self, TimeSpanError> {
         Self::from_units(
@@ -664,6 +822,11 @@ impl TimeSpan {
         )
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if the combined `milliseconds`/
+    /// `microseconds` value falls outside the range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L604-L610
     pub fn from_milliseconds_parts(
         milliseconds: i64,
@@ -676,6 +839,12 @@ impl TimeSpan {
         Self::from_microseconds_i128(total_microseconds)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
+    /// [`TimeSpanError::Overflow`] if `value` scaled to ticks falls outside the range
+    /// representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpan.cs#L632, TimeSpan.cs#L679
     pub fn from_microseconds(value: f64) -> Result<Self, TimeSpanError> {
         Self::interval(value, Self::TICKS_PER_MICROSECOND as f64)
@@ -687,6 +856,11 @@ impl TimeSpan {
     /// multi-component `_parts` constructors (which go through
     /// [`Self::from_microseconds_i128`] instead). Takes `i64` (rather than
     /// `i32`) matching C#'s `FromMicroseconds(long)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::Overflow`] if `microseconds` falls outside the
+    /// whole-microsecond range representable by `TimeSpan`.
     ///
     /// Cf. TimeSpan.cs#L632
     pub fn from_microseconds_i64(microseconds: i64) -> Result<Self, TimeSpanError> {
@@ -738,6 +912,12 @@ impl TimeSpan {
     /// (callers spell out `"."` themselves, e.g. `"dd\\.ss"`), so this doesn't apply to
     /// the custom-format branch in the same way.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::InvalidFormat`] if `format` is a single character that
+    /// isn't one of the five standard specifiers, or a syntactically invalid custom
+    /// format string.
+    ///
     /// Cf. TimeSpanFormat.cs#L19-L48 (`Format`), TimeSpanFormat.cs#L91-L100 (`FormatG`),
     /// TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`), TimeSpanFormat.cs#L296-455
     /// (`FormatCustomized`)
@@ -757,8 +937,9 @@ impl TimeSpan {
         let second = chars.next();
 
         match (first, second) {
-            (None, None) => Ok(self.to_string()),
-            (Some('c' | 't' | 'T'), None) => Ok(self.to_string()),
+            // Empty string and "c"/"t"/"T" are all the same constant format — see this
+            // function's doc comment above.
+            (None | Some('c' | 't' | 'T'), None) => Ok(self.to_string()),
             (Some('g'), None) => Ok(self.format_general(false)),
             (Some('G'), None) => Ok(self.format_general(true)),
             (Some(_), None) => Err(TimeSpanError::InvalidFormat),
@@ -775,7 +956,9 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.g`/`.G`
     /// branches)
-    fn format_general(&self, long: bool) -> String {
+    fn format_general(self, long: bool) -> String {
+        use std::fmt::Write;
+
         let negative = self.ticks < 0;
         let abs_ticks: i128 = if negative {
             -(self.ticks as i128)
@@ -797,7 +980,7 @@ impl TimeSpan {
         }
 
         if days > 0 {
-            out.push_str(&format!("{days}:"));
+            let _ = write!(out, "{days}:");
         } else if long {
             out.push_str("0:");
         }
@@ -805,15 +988,15 @@ impl TimeSpan {
         if !long && hours < 10 {
             out.push_str(&hours.to_string());
         } else {
-            out.push_str(&format!("{hours:02}"));
+            let _ = write!(out, "{hours:02}");
         }
-        out.push_str(&format!(":{minutes:02}:{seconds:02}"));
+        let _ = write!(out, ":{minutes:02}:{seconds:02}");
 
         if long {
-            out.push_str(&format!(".{fraction:07}"));
+            let _ = write!(out, ".{fraction:07}");
         } else if fraction != 0 {
             let (value, digits) = Self::trim_fraction_trailing_zeros(fraction);
-            out.push_str(&format!(".{value:0width$}", width = digits as usize));
+            let _ = write!(out, ".{value:0width$}", width = digits as usize);
         }
 
         out
@@ -884,6 +1067,14 @@ impl TimeSpan {
     /// `parse_general` for `"g"`/`"G"` (ported from `TryParseTimeSpan` with the `Localized`/
     /// `RequireFull` styles).
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::InvalidFormat`] if `format` is empty, a single
+    /// character that isn't one of the five standard specifiers, or a syntactically
+    /// invalid custom format string, or if `input` doesn't match `format`. Returns
+    /// [`TimeSpanError::Overflow`] if `input` matches `format` but the resulting value
+    /// falls outside the range representable by `TimeSpan`.
+    ///
     /// Cf. TimeSpanParse.cs's `TryParseExactTimeSpan`/`TryParseByFormat`
     /// (TimeSpanParse.cs#L1228-L1416)
     ///
@@ -937,6 +1128,14 @@ impl TimeSpan {
     ///   is never itself returned; if every format in the slice fails, the result is always
     ///   the generic [`TimeSpanError::InvalidFormat`], regardless of why any individual
     ///   attempt failed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::InvalidFormat`] if `input` is empty, `formats` is
+    /// empty, any individual format string in `formats` is empty, or `input` doesn't
+    /// match any format in `formats` — see the notable-edge-cases list above for how
+    /// each of those is distinguished from a per-attempt [`TimeSpanError::Overflow`],
+    /// which is never itself returned from this method.
     ///
     /// Cf. `TimeSpanParse.cs`'s `TryParseExactMultipleTimeSpan`
     /// (TimeSpanParse.cs#L1662-1703)
@@ -1014,6 +1213,14 @@ impl TimeSpan {
     /// completely; a larger `destination` succeeds and leaves any trailing bytes past
     /// the written prefix untouched.
     ///
+    /// # Errors
+    ///
+    /// Returns [`TimeSpanError::InvalidFormat`] if `format` is a single character that
+    /// isn't one of the five standard specifiers, or a syntactically invalid custom
+    /// format string — checked before `destination`'s length, per this doc comment's
+    /// note above. Returns [`TimeSpanError::InsufficientBuffer`] if `format` is valid
+    /// but `destination` is too short to hold the formatted output.
+    ///
     /// Cf. TimeSpanFormat.cs#L50-L82 (`TryFormat<TChar>`), TimeSpanFormat.cs#L109-L294
     /// (`TryFormatStandard<TChar>`, its `requiredOutputLength` computation and
     /// insufficient-space `false` return), TimeSpanFormat.cs#L77-81 (`TryFormat`'s
@@ -1037,8 +1244,9 @@ impl TimeSpan {
         let second = chars.next();
 
         let standard = match (first, second) {
-            (None, None) => StandardFormat::Constant,
-            (Some('c' | 't' | 'T'), None) => StandardFormat::Constant,
+            // Empty string and "c"/"t"/"T" are all the same constant format — see
+            // `to_string_format`'s doc comment.
+            (None | Some('c' | 't' | 'T'), None) => StandardFormat::Constant,
             (Some('g'), None) => StandardFormat::GeneralShort,
             (Some('G'), None) => StandardFormat::GeneralLong,
             (Some(_), None) => return Err(TimeSpanError::InvalidFormat),
@@ -1057,11 +1265,11 @@ impl TimeSpan {
     /// Cf. TimeSpanFormat.cs#L77-81 (`TryFormat`'s custom-format branch),
     /// ValueListBuilder.cs#L149-159 (`TryCopyTo`)
     fn try_format_customized(
-        &self,
+        self,
         destination: &mut [u8],
         format: &str,
     ) -> Result<usize, TimeSpanError> {
-        let formatted = crate::time_span_format_custom::format_customized(*self, format)?;
+        let formatted = crate::time_span_format_custom::format_customized(self, format)?;
         let bytes = formatted.as_bytes();
 
         if destination.len() < bytes.len() {
@@ -1080,7 +1288,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard<TChar>`)
     fn try_format_standard(
-        &self,
+        self,
         format: StandardFormat,
         destination: &mut [u8],
     ) -> Result<usize, TimeSpanError> {
