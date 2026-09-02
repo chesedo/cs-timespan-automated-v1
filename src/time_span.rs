@@ -78,6 +78,11 @@ impl TimeSpan {
     pub const MINUTES_PER_HOUR: i64 = Self::TICKS_PER_HOUR / Self::TICKS_PER_MINUTE;
     pub const MINUTES_PER_DAY: i64 = Self::TICKS_PER_DAY / Self::TICKS_PER_MINUTE;
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "TICKS_PER_DAY / TICKS_PER_HOUR is the compile-time constant 24, far within i32's \
+                  range"
+    )]
     pub const HOURS_PER_DAY: i32 = (Self::TICKS_PER_DAY / Self::TICKS_PER_HOUR) as i32;
 
     /// Cf. TimeSpan.cs#L230
@@ -129,7 +134,13 @@ impl TimeSpan {
             return Err(TimeSpanError::Overflow);
         }
 
-        Ok(total_seconds as i64 * Self::TICKS_PER_SECOND)
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "total_seconds is bounds-checked against MAX_SECONDS/MIN_SECONDS (i64::MAX/MIN \
+                      divided by TICKS_PER_SECOND) above, so it fits in i64"
+        )]
+        let ticks = total_seconds as i64 * Self::TICKS_PER_SECOND;
+        Ok(ticks)
     }
 
     /// Sums days/hours/minutes/seconds/milliseconds/microseconds into a
@@ -157,7 +168,13 @@ impl TimeSpan {
             return Err(TimeSpanError::Overflow);
         }
 
-        Ok(total_microseconds as i64 * Self::TICKS_PER_MICROSECOND)
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "total_microseconds is bounds-checked against MAX_MICROSECONDS/MIN_MICROSECONDS \
+                      (i64::MAX/MIN divided by TICKS_PER_MICROSECOND) above, so it fits in i64"
+        )]
+        let ticks = total_microseconds as i64 * Self::TICKS_PER_MICROSECOND;
+        Ok(ticks)
     }
 
     /// Constructs a `TimeSpan` directly from a tick count.
@@ -180,13 +197,25 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L310
     #[must_use]
     pub fn days(&self) -> i32 {
-        (self.ticks / Self::TICKS_PER_DAY) as i32
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "ticks / TICKS_PER_DAY is at most ~10.68 million in magnitude \
+                      (i64::MAX / TICKS_PER_DAY), far within i32's range for any representable \
+                      TimeSpan"
+        )]
+        let days = (self.ticks / Self::TICKS_PER_DAY) as i32;
+        days
     }
 
     /// Cf. TimeSpan.cs#L312
     #[must_use]
     pub fn hours(&self) -> i32 {
-        (self.ticks / Self::TICKS_PER_HOUR % i64::from(Self::HOURS_PER_DAY)) as i32
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "modulo by HOURS_PER_DAY (24) bounds the result to (-23..=23), well within i32"
+        )]
+        let hours = (self.ticks / Self::TICKS_PER_HOUR % i64::from(Self::HOURS_PER_DAY)) as i32;
+        hours
     }
 
     /// Cf. TimeSpan.cs#L334
@@ -216,31 +245,62 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L325-L332
     #[must_use]
     pub fn nanoseconds(&self) -> i32 {
-        (self.ticks % Self::TICKS_PER_MICROSECOND * Self::NANOSECONDS_PER_TICK) as i32
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "ticks % TICKS_PER_MICROSECOND (10) is in -9..=9, times NANOSECONDS_PER_TICK \
+                      (100) is in -900..=900, well within i32"
+        )]
+        let nanoseconds =
+            (self.ticks % Self::TICKS_PER_MICROSECOND * Self::NANOSECONDS_PER_TICK) as i32;
+        nanoseconds
     }
 
     /// Cf. TimeSpan.cs#L338
     #[must_use]
     pub fn total_days(&self) -> f64 {
-        self.ticks as f64 / Self::TICKS_PER_DAY as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalDays: `(double)_ticks / TicksPerDay` has the identical \
+                      precision-loss characteristics for large tick magnitudes (TimeSpan.cs)"
+        )]
+        let total_days = self.ticks as f64 / Self::TICKS_PER_DAY as f64;
+        total_days
     }
 
     /// Cf. TimeSpan.cs#L340
     #[must_use]
     pub fn total_hours(&self) -> f64 {
-        self.ticks as f64 / Self::TICKS_PER_HOUR as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalHours: `(double)_ticks / TicksPerHour` has the identical \
+                      precision-loss characteristics for large tick magnitudes (TimeSpan.cs)"
+        )]
+        let total_hours = self.ticks as f64 / Self::TICKS_PER_HOUR as f64;
+        total_hours
     }
 
     /// Cf. TimeSpan.cs#L385
     #[must_use]
     pub fn total_minutes(&self) -> f64 {
-        self.ticks as f64 / Self::TICKS_PER_MINUTE as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalMinutes: `(double)_ticks / TicksPerMinute` has the identical \
+                      precision-loss characteristics for large tick magnitudes (TimeSpan.cs)"
+        )]
+        let total_minutes = self.ticks as f64 / Self::TICKS_PER_MINUTE as f64;
+        total_minutes
     }
 
     /// Cf. TimeSpan.cs#L387
     #[must_use]
     pub fn total_seconds(&self) -> f64 {
-        self.ticks as f64 / Self::TICKS_PER_SECOND as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalSeconds: `(double)_ticks / TicksPerSecond` has the identical \
+                      precision-loss characteristics for large tick magnitudes (TimeSpan.cs)"
+        )]
+        let total_seconds = self.ticks as f64 / Self::TICKS_PER_SECOND as f64;
+        total_seconds
     }
 
     /// Clamps to the tick-range boundary (expressed in milliseconds) instead of
@@ -249,8 +309,23 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L342-L359
     #[must_use]
     pub fn total_milliseconds(&self) -> f64 {
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s MaxMilliseconds constant (long.MaxValue / TicksPerMillisecond) \
+                      implicitly converted to double for the comparison/return in TotalMilliseconds \
+                      (TimeSpan.cs)"
+        )]
         let max = (i64::MAX / Self::TICKS_PER_MILLISECOND) as f64;
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s MinMilliseconds constant, see `max` above"
+        )]
         let min = (i64::MIN / Self::TICKS_PER_MILLISECOND) as f64;
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalMilliseconds: `(double)_ticks / TicksPerMillisecond` \
+                      (TimeSpan.cs)"
+        )]
         let value = self.ticks as f64 / Self::TICKS_PER_MILLISECOND as f64;
 
         if value > max {
@@ -265,13 +340,25 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L361-L371
     #[must_use]
     pub fn total_microseconds(&self) -> f64 {
-        self.ticks as f64 / Self::TICKS_PER_MICROSECOND as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalMicroseconds: `(double)_ticks / TicksPerMicrosecond` has the \
+                      identical precision-loss characteristics for large tick magnitudes (TimeSpan.cs)"
+        )]
+        let total_microseconds = self.ticks as f64 / Self::TICKS_PER_MICROSECOND as f64;
+        total_microseconds
     }
 
     /// Cf. TimeSpan.cs#L373-L383
     #[must_use]
     pub fn total_nanoseconds(&self) -> f64 {
-        self.ticks as f64 * Self::NANOSECONDS_PER_TICK as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s TotalNanoseconds: `(double)_ticks * NanosecondsPerTick` has the \
+                      identical precision-loss characteristics for large tick magnitudes (TimeSpan.cs)"
+        )]
+        let total_nanoseconds = self.ticks as f64 * Self::NANOSECONDS_PER_TICK as f64;
+        total_nanoseconds
     }
 
     // --- Everything below is unimplemented: real signatures, `todo!()` bodies. ---
@@ -454,6 +541,11 @@ impl TimeSpan {
             return Err(TimeSpanError::NotANumber);
         }
 
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s operator*: `timeSpan.Ticks * factor` implicitly promotes Ticks \
+                      (long) to double for the multiplication (TimeSpan.cs)"
+        )]
         let ticks = (self.ticks as f64 * factor).round_ties_even();
         Self::interval_from_double_ticks(ticks)
     }
@@ -474,6 +566,11 @@ impl TimeSpan {
             return Err(TimeSpanError::NotANumber);
         }
 
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s operator/: `timeSpan.Ticks / divisor` implicitly promotes Ticks \
+                      (long) to double for the division (TimeSpan.cs)"
+        )]
         let ticks = (self.ticks as f64 / divisor).round_ties_even();
         Self::interval_from_double_ticks(ticks)
     }
@@ -484,7 +581,13 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
     #[must_use]
     pub fn divide_time_span(self, rhs: Self) -> f64 {
-        self.ticks as f64 / rhs.ticks as f64
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s `TimeSpan / TimeSpan` operator: `t1.Ticks / (double)t2.Ticks` \
+                      implicitly promotes both operands to double (TimeSpan.cs)"
+        )]
+        let result = self.ticks as f64 / rhs.ticks as f64;
+        result
     }
 
     /// Validates `value` isn't NaN, then scales it into a tick count via
@@ -516,7 +619,16 @@ impl TimeSpan {
                   epsilon comparison would be appropriate"
     )]
     fn interval_from_double_ticks(ticks: f64) -> Result<Self, TimeSpanError> {
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s MaxTicks constant (long.MaxValue) implicitly converted to double \
+                      for this same bounds comparison (TimeSpan.cs)"
+        )]
         let max_ticks = i64::MAX as f64;
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s MinTicks constant, see `max_ticks` above"
+        )]
         let min_ticks = i64::MIN as f64;
 
         if ticks > max_ticks || ticks < min_ticks || ticks.is_nan() {
@@ -525,9 +637,13 @@ impl TimeSpan {
         if ticks == max_ticks {
             return Ok(Self::MAX);
         }
-        Ok(TimeSpan {
-            ticks: ticks as i64,
-        })
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "matches C#'s `(long)ticks` truncating cast in IntervalFromDoubleTicks, guarded \
+                      by the same bounds check above (TimeSpan.cs)"
+        )]
+        let ticks = ticks as i64;
+        Ok(TimeSpan { ticks })
     }
 
     /// Bounds-checks a raw unit count against `[min_units, max_units]` before
@@ -564,7 +680,13 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L414, TimeSpan.cs#L455
     pub fn from_days(value: f64) -> Result<Self, TimeSpanError> {
-        Self::interval(value, Self::TICKS_PER_DAY as f64)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s FromDays: `Interval(value, TicksPerDay)` implicitly converts the \
+                      TicksPerDay long constant to the double `scale` parameter (TimeSpan.cs)"
+        )]
+        let scale = Self::TICKS_PER_DAY as f64;
+        Self::interval(value, scale)
     }
 
     /// Single-argument integer overload, bounds-checked against the whole-day
@@ -603,9 +725,13 @@ impl TimeSpan {
         {
             return Err(TimeSpanError::Overflow);
         }
-        Ok(TimeSpan {
-            ticks: total_microseconds as i64 * Self::TICKS_PER_MICROSECOND,
-        })
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "total_microseconds is bounds-checked against MAX_MICROSECONDS/MIN_MICROSECONDS \
+                      (i64::MAX/MIN divided by TICKS_PER_MICROSECOND) above, so it fits in i64"
+        )]
+        let ticks = total_microseconds as i64 * Self::TICKS_PER_MICROSECOND;
+        Ok(TimeSpan { ticks })
     }
 
     /// # Errors
@@ -643,7 +769,13 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L492, TimeSpan.cs#L634
     pub fn from_hours(value: f64) -> Result<Self, TimeSpanError> {
-        Self::interval(value, Self::TICKS_PER_HOUR as f64)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s FromHours: `Interval(value, TicksPerHour)` implicitly converts the \
+                      TicksPerHour long constant to the double `scale` parameter (TimeSpan.cs)"
+        )]
+        let scale = Self::TICKS_PER_HOUR as f64;
+        Self::interval(value, scale)
     }
 
     /// Single-argument integer overload, bounds-checked against the whole-hour
@@ -697,7 +829,13 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L527, TimeSpan.cs#L681
     pub fn from_minutes(value: f64) -> Result<Self, TimeSpanError> {
-        Self::interval(value, Self::TICKS_PER_MINUTE as f64)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s FromMinutes: `Interval(value, TicksPerMinute)` implicitly converts \
+                      the TicksPerMinute long constant to the double `scale` parameter (TimeSpan.cs)"
+        )]
+        let scale = Self::TICKS_PER_MINUTE as f64;
+        Self::interval(value, scale)
     }
 
     /// Single-argument integer overload, bounds-checked against the
@@ -750,7 +888,13 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L560, TimeSpan.cs#L685
     pub fn from_seconds(value: f64) -> Result<Self, TimeSpanError> {
-        Self::interval(value, Self::TICKS_PER_SECOND as f64)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s FromSeconds: `Interval(value, TicksPerSecond)` implicitly converts \
+                      the TicksPerSecond long constant to the double `scale` parameter (TimeSpan.cs)"
+        )]
+        let scale = Self::TICKS_PER_SECOND as f64;
+        Self::interval(value, scale)
     }
 
     /// Single-argument integer overload, bounds-checked against the
@@ -800,7 +944,14 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L591-L592, TimeSpan.cs#L658
     pub fn from_milliseconds(value: f64) -> Result<Self, TimeSpanError> {
-        Self::interval(value, Self::TICKS_PER_MILLISECOND as f64)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s FromMilliseconds: `Interval(value, TicksPerMillisecond)` \
+                      implicitly converts the TicksPerMillisecond long constant to the double `scale` \
+                      parameter (TimeSpan.cs)"
+        )]
+        let scale = Self::TICKS_PER_MILLISECOND as f64;
+        Self::interval(value, scale)
     }
 
     /// Single-argument integer overload, bounds-checked against the
@@ -849,7 +1000,14 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L632, TimeSpan.cs#L679
     pub fn from_microseconds(value: f64) -> Result<Self, TimeSpanError> {
-        Self::interval(value, Self::TICKS_PER_MICROSECOND as f64)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s FromMicroseconds: `Interval(value, TicksPerMicrosecond)` \
+                      implicitly converts the TicksPerMicrosecond long constant to the double `scale` \
+                      parameter (TimeSpan.cs)"
+        )]
+        let scale = Self::TICKS_PER_MICROSECOND as f64;
+        Self::interval(value, scale)
     }
 
     /// Single-argument integer overload, bounds-checked against the
@@ -969,7 +1127,7 @@ impl TimeSpan {
         };
 
         let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
-        let fraction = (abs_ticks % ticks_per_second) as u32;
+        let fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
         let total_seconds = abs_ticks / ticks_per_second;
 
         let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
@@ -1002,6 +1160,36 @@ impl TimeSpan {
         }
 
         out
+    }
+
+    /// Extracts the sub-second tick-fraction component from a non-negative tick
+    /// magnitude already widened to `i128` (`abs_ticks`, `ticks_per_second` is always
+    /// [`Self::TICKS_PER_SECOND`] widened the same way). Shared by
+    /// [`Self::format_general`], [`Self::try_format_standard`], and the
+    /// [`Display`](std::fmt::Display) impl, which each compute this identically.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "abs_ticks % ticks_per_second is bounded to [0, TICKS_PER_SECOND) since abs_ticks \
+                  is always non-negative, well within u32 and never negative"
+    )]
+    fn fraction_from_abs_ticks(abs_ticks: i128, ticks_per_second: i128) -> u32 {
+        (abs_ticks % ticks_per_second) as u32
+    }
+
+    /// Renders `hours` as the single ASCII decimal digit `"g"`'s single-digit-hour
+    /// case needs, for use by [`Self::try_format_standard`]. Callers pass `hours`
+    /// only when it's already known to be `< 10`; combined with `hours` being
+    /// `total_hours % 24` (non-negative, `abs_ticks`-derived), it's bounded to
+    /// `[0, 9]`, well within `u8`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "hours is total_hours % 24 (non-negative abs_ticks-derived) and callers only pass \
+                  values < 10, bounded to [0, 9], well within u8 and never negative"
+    )]
+    fn single_hour_digit(hours: i128) -> u8 {
+        b'0' + hours as u8
     }
 
     /// Trims trailing zeros from a 7-digit tick fraction (`0..=9_999_999`), returning
@@ -1302,7 +1490,7 @@ impl TimeSpan {
         };
 
         let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
-        let mut fraction = (abs_ticks % ticks_per_second) as u32;
+        let mut fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
         let total_seconds = abs_ticks / ticks_per_second;
 
         let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
@@ -1387,7 +1575,7 @@ impl TimeSpan {
         if hour_digits == 2 {
             pos = Self::write_padded_digits(destination, pos, hours, 2);
         } else {
-            destination[pos] = b'0' + hours as u8;
+            destination[pos] = Self::single_hour_digit(hours);
             pos += 1;
         }
         destination[pos] = b':';
@@ -1421,7 +1609,14 @@ impl TimeSpan {
         debug_assert!(value >= 0);
         let mut remaining = value;
         for i in (0..width).rev() {
-            destination[pos + i] = b'0' + (remaining % 10) as u8;
+            #[allow(
+                clippy::cast_sign_loss,
+                reason = "remaining starts non-negative (see debug_assert! above) and dividing/taking \
+                          the modulo of a non-negative i128 by the positive constant 10 keeps it \
+                          non-negative, so `remaining % 10` is in [0, 9] — never negative"
+            )]
+            let digit = b'0' + (remaining % 10) as u8;
+            destination[pos + i] = digit;
             remaining /= 10;
         }
         debug_assert_eq!(remaining, 0, "value did not fit within `width` digits");
@@ -1608,7 +1803,7 @@ impl std::fmt::Display for TimeSpan {
         };
 
         let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
-        let fraction = (abs_ticks % ticks_per_second) as u32;
+        let fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
         let total_seconds = abs_ticks / ticks_per_second;
 
         let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
