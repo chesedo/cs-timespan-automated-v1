@@ -87,13 +87,13 @@ impl CharTokenizer {
     }
 }
 
-/// Reads up to `max_digit_length` ASCII digits, returning `(leading zero count, value,
-/// whether at least `min_digit_length` digits were read)`. The zero/value/consumed-so-far
+/// Reads up to `max_digit_length` ASCII digits, returning (leading zero count, value,
+/// whether at least `min_digit_length` digits were read). The zero/value/consumed-so-far
 /// outputs are meaningful even when the third element is `false` — callers that ignore it
 /// (the `'F'` case) rely on that, exactly as `ParseExactDigits`'s C# `out` parameters are
 /// still assigned on a `false` return.
 ///
-/// Cf. ParseExactDigits, 2-min/max-argument overload (TimeSpanParse.cs#L1424-1446)
+/// Cf. `ParseExactDigits`, 2-min/max-argument overload (TimeSpanParse.cs#L1424-1446)
 fn parse_exact_digits(tokenizer: &mut CharTokenizer, min: u32, max: u32) -> (u32, i64, bool) {
     let mut result: i64 = 0;
     let mut zeroes: u32 = 0;
@@ -115,7 +115,7 @@ fn parse_exact_digits(tokenizer: &mut CharTokenizer, min: u32, max: u32) -> (u32
     (zeroes, result, token_length >= min)
 }
 
-/// Cf. ParseExactDigits, 1-`min`-argument overload (TimeSpanParse.cs#L1418-1422) — used by
+/// Cf. `ParseExactDigits`, 1-`min`-argument overload (TimeSpanParse.cs#L1418-1422) — used by
 /// the `'h'`/`'m'`/`'s'` cases, where a single-character specifier (e.g. `"h"`) accepts 1 or
 /// 2 digits but a repeated one (e.g. `"hh"`) requires exactly that many.
 fn digits_1_or_2(tokenizer: &mut CharTokenizer, min: u32) -> (i64, bool) {
@@ -177,7 +177,7 @@ fn try_parse_quote_string(format: &[char], pos: usize) -> Option<(String, usize)
 
 /// Matches `literal` character-by-character against the input, via the tokenizer.
 ///
-/// Cf. ParseExactLiteral (TimeSpanParse.cs#L1448-1460)
+/// Cf. `ParseExactLiteral` (TimeSpanParse.cs#L1448-1460)
 fn parse_exact_literal(tokenizer: &mut CharTokenizer, literal: &str) -> bool {
     for expected in literal.chars() {
         if expected != tokenizer.next_char() {
@@ -190,7 +190,14 @@ fn parse_exact_literal(tokenizer: &mut CharTokenizer, literal: &str) -> bool {
 /// Parses `input` against a custom format string. See `TimeSpan::parse_exact`'s doc comment
 /// for the full scope (what's covered, what's deferred).
 ///
-/// Cf. TryParseByFormat (TimeSpanParse.cs#L1250-1416)
+/// Cf. `TryParseByFormat` (TimeSpanParse.cs#L1250-1416)
+#[allow(
+    clippy::too_many_lines,
+    reason = "a character-by-character tokenizer match mirroring C#'s equally-long \
+              TryParseByFormat switch statement (TimeSpanParse.cs#L1250-1416) \
+              one-to-one; splitting it up would obscure that direct correspondence \
+              rather than clarify anything"
+)]
 pub(crate) fn parse_exact(
     input: &str,
     format: &str,

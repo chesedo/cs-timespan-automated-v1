@@ -60,8 +60,8 @@ fn parse_repeat_pattern(format: &[char], pos: usize, pattern_char: char) -> usiz
 ///
 /// Cf. DateTimeFormat.FormatDigits (DateTimeFormat.cs#L164-195)
 fn format_digits(out: &mut String, value: i64, minimum_length: u32) {
-    debug_assert!(value >= 0, "FormatDigits: value >= 0");
     use std::fmt::Write;
+    debug_assert!(value >= 0, "FormatDigits: value >= 0");
     let _ = write!(out, "{value:0width$}", width = minimum_length as usize);
 }
 
@@ -110,6 +110,13 @@ fn parse_quote_string(format: &[char], pos: usize) -> Result<(String, usize), Ti
 /// comment for the full scope (what's covered, what's deferred).
 ///
 /// Cf. TimeSpanFormat.cs#L296-455 (`FormatCustomized`)
+#[allow(
+    clippy::too_many_lines,
+    reason = "a character-by-character tokenizer match mirroring C#'s equally-long \
+              FormatCustomized switch statement (TimeSpanFormat.cs#L296-455) \
+              one-to-one; splitting it up would obscure that direct correspondence \
+              rather than clarify anything"
+)]
 pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, TimeSpanError> {
     let format_chars: Vec<char> = format.chars().collect();
     let ticks = ts.ticks();

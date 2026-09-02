@@ -265,7 +265,7 @@ fn parse_with_style(
     }
 }
 
-/// Cf. TimeSpanRawInfo's `AddSep` (TimeSpanParse.cs#L451-470); the token/literal-count caps
+/// Cf. `TimeSpanRawInfo`'s `AddSep` (TimeSpanParse.cs#L451-470); the token/literal-count caps
 /// mirror `MaxTokens`/`MaxLiteralTokens` (TimeSpanParse.cs#L398-399).
 fn add_sep(
     seps: &mut Vec<String>,
@@ -280,7 +280,7 @@ fn add_sep(
     Ok(())
 }
 
-/// Cf. TimeSpanRawInfo's `AddNum` (TimeSpanParse.cs#L471-489); the token/numeric-count caps
+/// Cf. `TimeSpanRawInfo`'s `AddNum` (TimeSpanParse.cs#L471-489); the token/numeric-count caps
 /// mirror `MaxTokens`/`MaxNumericTokens` (TimeSpanParse.cs#L398, #L400).
 fn add_num(
     numbers: &mut Vec<NumTok>,
@@ -295,7 +295,7 @@ fn add_num(
     Ok(())
 }
 
-/// Cf. ProcessTerminal_D (TimeSpanParse.cs#L1159-1225)
+/// Cf. `ProcessTerminal_D` (TimeSpanParse.cs#L1159-1225)
 fn process_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
     let (s0, s1) = (s[0].as_str(), s[1].as_str());
     let positive = match (s0, s1) {
@@ -314,7 +314,7 @@ fn process_d(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
     finish(positive, ticks)
 }
 
-/// Cf. ProcessTerminal_HM (TimeSpanParse.cs#L1090-1156)
+/// Cf. `ProcessTerminal_HM` (TimeSpanParse.cs#L1090-1156)
 fn process_hm(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
     let (s0, s1, s2) = (s[0].as_str(), s[1].as_str(), s[2].as_str());
     let positive = match (s0, s1, s2) {
@@ -338,7 +338,7 @@ fn process_hm(n: &[NumTok], s: &[String]) -> Result<TimeSpan, TimeSpanError> {
 /// whose numeric bounds fail is remembered as an overflow rather than immediately reported,
 /// so a later, still-untried candidate gets a chance to succeed.
 ///
-/// Cf. ProcessTerminal_HM_S_D / ProcessTerminal_HMS_F_D / ProcessTerminal_DHMSF
+/// Cf. `ProcessTerminal_HM_S_D` / `ProcessTerminal_HMS_F_D` / `ProcessTerminal_DHMSF`
 fn process_ambiguous(
     candidates: &[(bool, bool, NumTok, NumTok, NumTok, NumTok, NumTok)],
 ) -> Result<TimeSpan, TimeSpanError> {
@@ -360,7 +360,7 @@ fn process_ambiguous(
     })
 }
 
-/// Cf. ProcessTerminal_HM_S_D (TimeSpanParse.cs#L963-1087): "h:m:s", "d.h:m", or "h:m:.f".
+/// Cf. `ProcessTerminal_HM_S_D` (TimeSpanParse.cs#L963-1087): "h:m:s", "d.h:m", or "h:m:.f".
 fn process_hm_s_d(
     n: &[NumTok],
     s: &[String],
@@ -436,7 +436,7 @@ fn process_hm_s_d(
     process_ambiguous(&candidates)
 }
 
-/// Cf. ProcessTerminal_HMS_F_D (TimeSpanParse.cs#L834-961): "h:m:s.f", "d.h:m:s", or "d.h:m:.f".
+/// Cf. `ProcessTerminal_HMS_F_D` (TimeSpanParse.cs#L834-961): "h:m:s.f", "d.h:m:s", or "d.h:m:.f".
 fn process_hms_f_d(
     n: &[NumTok],
     s: &[String],
@@ -536,7 +536,7 @@ fn process_hms_f_d(
     process_ambiguous(&candidates)
 }
 
-/// Cf. ProcessTerminal_DHMSF (TimeSpanParse.cs#L767-831): "d.h:m:s.f".
+/// Cf. `ProcessTerminal_DHMSF` (TimeSpanParse.cs#L767-831): "d.h:m:s.f".
 fn process_dhmsf(
     n: &[NumTok],
     s: &[String],
@@ -583,7 +583,7 @@ fn process_dhmsf(
     process_ambiguous(&candidates)
 }
 
-/// Cf. TryTimeToTicks (TimeSpanParse.cs#L595-625)
+/// Cf. `TryTimeToTicks` (TimeSpanParse.cs#L595-625)
 ///
 /// `pub(crate)`: shared with `time_span_parse_exact.rs` — see [`NumTok`]'s doc comment.
 pub(crate) fn time_to_ticks(
@@ -594,6 +594,9 @@ pub(crate) fn time_to_ticks(
     seconds: NumTok,
     fraction: NumTok,
 ) -> Result<i64, TimeSpanError> {
+    const MAX_MS: i64 = i64::MAX / TimeSpan::TICKS_PER_MILLISECOND;
+    const MIN_MS: i64 = i64::MIN / TimeSpan::TICKS_PER_MILLISECOND;
+
     if days.value > MAX_DAYS
         || hours.value > MAX_HOURS
         || minutes.value > MAX_MINUTES
@@ -605,8 +608,6 @@ pub(crate) fn time_to_ticks(
 
     let ticks_ms =
         (days.value * 86_400 + hours.value * 3_600 + minutes.value * 60 + seconds.value) * 1_000;
-    const MAX_MS: i64 = i64::MAX / TimeSpan::TICKS_PER_MILLISECOND;
-    const MIN_MS: i64 = i64::MIN / TimeSpan::TICKS_PER_MILLISECOND;
     if !(MIN_MS..=MAX_MS).contains(&ticks_ms) {
         return Err(TimeSpanError::Overflow);
     }
