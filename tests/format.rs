@@ -22,28 +22,67 @@ fn display_constant_format() {
     assert_eq!("-00:00:00.0000001", TimeSpan::from_ticks(-1).to_string());
     assert_eq!("10675199.02:48:05.4775807", TimeSpan::MAX.to_string());
     assert_eq!("-10675199.02:48:05.4775808", TimeSpan::MIN.to_string());
-    assert_eq!("01:02:03", TimeSpan::from_hms(1, 2, 3).unwrap().to_string());
+    assert_eq!(
+        "01:02:03",
+        TimeSpan::builder()
+            .hours(1)
+            .minutes(2)
+            .seconds(3)
+            .build()
+            .unwrap()
+            .to_string()
+    );
     assert_eq!(
         "-01:02:03",
-        (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string()
+        (-TimeSpan::builder()
+            .hours(1)
+            .minutes(2)
+            .seconds(3)
+            .build()
+            .unwrap())
+        .to_string()
     );
     assert_eq!(
         "12:34:56",
-        TimeSpan::from_hms(12, 34, 56).unwrap().to_string()
+        TimeSpan::builder()
+            .hours(12)
+            .minutes(34)
+            .seconds(56)
+            .build()
+            .unwrap()
+            .to_string()
     );
     assert_eq!(
         "13.10:56:23",
-        TimeSpan::from_dhms(12, 34, 56, 23).unwrap().to_string()
+        TimeSpan::builder()
+            .days(12)
+            .hours(34)
+            .minutes(56)
+            .seconds(23)
+            .build()
+            .unwrap()
+            .to_string()
     );
     assert_eq!(
         "13.10:56:23.0450000",
-        TimeSpan::from_dhms_milli(12, 34, 56, 23, 45)
+        TimeSpan::builder()
+            .days(12)
+            .hours(34)
+            .minutes(56)
+            .seconds(23)
+            .milliseconds(45)
+            .build()
             .unwrap()
             .to_string()
     );
     assert_eq!(
         "23:59:59.9990000",
-        TimeSpan::from_dhms_milli(0, 23, 59, 59, 999)
+        TimeSpan::builder()
+            .hours(23)
+            .minutes(59)
+            .seconds(59)
+            .milliseconds(999)
+            .build()
             .unwrap()
             .to_string()
     );
@@ -115,33 +154,65 @@ fn to_string_format_general_short() {
     );
     assert_eq!(
         Ok("1:02:03".to_string()),
-        TimeSpan::from_hms(1, 2, 3).unwrap().to_string_format("g")
+        TimeSpan::builder()
+            .hours(1)
+            .minutes(2)
+            .seconds(3)
+            .build()
+            .unwrap()
+            .to_string_format("g")
     );
     assert_eq!(
         Ok("-1:02:03".to_string()),
-        (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string_format("g")
+        (-TimeSpan::builder()
+            .hours(1)
+            .minutes(2)
+            .seconds(3)
+            .build()
+            .unwrap())
+        .to_string_format("g")
     );
     assert_eq!(
         Ok("12:34:56".to_string()),
-        TimeSpan::from_hms(12, 34, 56)
+        TimeSpan::builder()
+            .hours(12)
+            .minutes(34)
+            .seconds(56)
+            .build()
             .unwrap()
             .to_string_format("g")
     );
     assert_eq!(
         Ok("13:10:56:23".to_string()),
-        TimeSpan::from_dhms(12, 34, 56, 23)
+        TimeSpan::builder()
+            .days(12)
+            .hours(34)
+            .minutes(56)
+            .seconds(23)
+            .build()
             .unwrap()
             .to_string_format("g")
     );
     assert_eq!(
         Ok("13:10:56:23.045".to_string()),
-        TimeSpan::from_dhms_milli(12, 34, 56, 23, 45)
+        TimeSpan::builder()
+            .days(12)
+            .hours(34)
+            .minutes(56)
+            .seconds(23)
+            .milliseconds(45)
+            .build()
             .unwrap()
             .to_string_format("g")
     );
     assert_eq!(
         Ok("23:59:59.999".to_string()),
-        TimeSpan::from_dhms_milli(0, 23, 59, 59, 999)
+        TimeSpan::builder()
+            .hours(23)
+            .minutes(59)
+            .seconds(59)
+            .milliseconds(999)
+            .build()
             .unwrap()
             .to_string_format("g")
     );
@@ -182,33 +253,65 @@ fn to_string_format_general_long() {
     );
     assert_eq!(
         Ok("0:01:02:03.0000000".to_string()),
-        TimeSpan::from_hms(1, 2, 3).unwrap().to_string_format("G")
+        TimeSpan::builder()
+            .hours(1)
+            .minutes(2)
+            .seconds(3)
+            .build()
+            .unwrap()
+            .to_string_format("G")
     );
     assert_eq!(
         Ok("-0:01:02:03.0000000".to_string()),
-        (-TimeSpan::from_hms(1, 2, 3).unwrap()).to_string_format("G")
+        (-TimeSpan::builder()
+            .hours(1)
+            .minutes(2)
+            .seconds(3)
+            .build()
+            .unwrap())
+        .to_string_format("G")
     );
     assert_eq!(
         Ok("0:12:34:56.0000000".to_string()),
-        TimeSpan::from_hms(12, 34, 56)
+        TimeSpan::builder()
+            .hours(12)
+            .minutes(34)
+            .seconds(56)
+            .build()
             .unwrap()
             .to_string_format("G")
     );
     assert_eq!(
         Ok("13:10:56:23.0000000".to_string()),
-        TimeSpan::from_dhms(12, 34, 56, 23)
+        TimeSpan::builder()
+            .days(12)
+            .hours(34)
+            .minutes(56)
+            .seconds(23)
+            .build()
             .unwrap()
             .to_string_format("G")
     );
     assert_eq!(
         Ok("13:10:56:23.0450000".to_string()),
-        TimeSpan::from_dhms_milli(12, 34, 56, 23, 45)
+        TimeSpan::builder()
+            .days(12)
+            .hours(34)
+            .minutes(56)
+            .seconds(23)
+            .milliseconds(45)
+            .build()
             .unwrap()
             .to_string_format("G")
     );
     assert_eq!(
         Ok("0:23:59:59.9990000".to_string()),
-        TimeSpan::from_dhms_milli(0, 23, 59, 59, 999)
+        TimeSpan::builder()
+            .hours(23)
+            .minutes(59)
+            .seconds(59)
+            .milliseconds(999)
+            .build()
             .unwrap()
             .to_string_format("G")
     );
@@ -269,7 +372,12 @@ fn to_string_format_custom() {
 /// DateTimeFormat.cs#L284-337 (`ParseQuoteString`)
 #[test]
 fn to_string_format_custom_quoted_literal() {
-    let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
+    let ts = TimeSpan::builder()
+        .hours(1)
+        .minutes(2)
+        .seconds(3)
+        .build()
+        .unwrap();
     assert_eq!(
         Ok("hh is 01".to_string()),
         ts.to_string_format("'hh is 'hh")
@@ -297,7 +405,12 @@ fn to_string_format_custom_quoted_literal() {
 /// magnitudes before the tokenizer loop runs; no `-` is ever appended)
 #[test]
 fn to_string_format_custom_no_sign() {
-    let positive = TimeSpan::from_hms(1, 2, 3).unwrap();
+    let positive = TimeSpan::builder()
+        .hours(1)
+        .minutes(2)
+        .seconds(3)
+        .build()
+        .unwrap();
     let negative = -positive;
     assert_eq!(
         Ok("01:02:03".to_string()),
@@ -369,7 +482,16 @@ fn to_string_format_invalid() {
 #[test]
 fn try_format_valid() {
     let cases: &[(TimeSpan, &str, &str)] = &[
-        (TimeSpan::from_hms(1, 2, 3).unwrap(), "c", "01:02:03"),
+        (
+            TimeSpan::builder()
+                .hours(1)
+                .minutes(2)
+                .seconds(3)
+                .build()
+                .unwrap(),
+            "c",
+            "01:02:03",
+        ),
         (TimeSpan::ZERO, "c", "00:00:00"),
         (
             TimeSpan::from_ticks(123_456_789_101_112),
@@ -377,11 +499,25 @@ fn try_format_valid() {
             "142.21:21:18.9101112",
         ),
         (TimeSpan::MIN, "c", "-10675199.02:48:05.4775808"),
-        (TimeSpan::from_hms(1, 2, 3).unwrap(), "g", "1:02:03"),
+        (
+            TimeSpan::builder()
+                .hours(1)
+                .minutes(2)
+                .seconds(3)
+                .build()
+                .unwrap(),
+            "g",
+            "1:02:03",
+        ),
         (TimeSpan::ZERO, "g", "0:00:00"),
         (TimeSpan::MIN, "g", "-10675199:2:48:05.4775808"),
         (
-            TimeSpan::from_hms(1, 2, 3).unwrap(),
+            TimeSpan::builder()
+                .hours(1)
+                .minutes(2)
+                .seconds(3)
+                .build()
+                .unwrap(),
             "G",
             "0:01:02:03.0000000",
         ),
@@ -485,7 +621,12 @@ fn try_format_custom() {
 /// Cf. TimeSpanFormat.cs#L301-312
 #[test]
 fn try_format_custom_no_sign() {
-    let positive = TimeSpan::from_hms(1, 2, 3).unwrap();
+    let positive = TimeSpan::builder()
+        .hours(1)
+        .minutes(2)
+        .seconds(3)
+        .build()
+        .unwrap();
     let negative = -positive;
 
     let mut buf = [0u8; 8];
