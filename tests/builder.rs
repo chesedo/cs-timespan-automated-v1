@@ -3,7 +3,8 @@
 
 use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
 
-/// A builder with every field set should match the equivalent `from_dhms_micro` call.
+/// A builder with every field set should match the expected tick count for
+/// 1d 2h 3m 4s 5ms 6μs.
 #[test]
 fn basic_construction_all_fields() {
     let built = TimeSpan::builder()
@@ -15,7 +16,7 @@ fn basic_construction_all_fields() {
         .microseconds(6)
         .build();
 
-    assert_eq!(built, TimeSpan::from_dhms_micro(1, 2, 3, 4, 5, 6));
+    assert_eq!(built, Ok(TimeSpan::from_ticks(937_840_050_060)));
 }
 
 /// Setting only a subset of fields leaves the rest at their `0` default.
@@ -23,7 +24,7 @@ fn basic_construction_all_fields() {
 fn basic_construction_partial_fields() {
     let built = TimeSpan::builder().days(1).hours(2).minutes(30).build();
 
-    assert_eq!(built, TimeSpan::from_dhms(1, 2, 30, 0));
+    assert_eq!(built, Ok(TimeSpan::from_ticks(954_000_000_000)));
 }
 
 /// Setters are fluent and order-independent (each just assigns its own field).
@@ -50,7 +51,7 @@ fn setters_are_order_independent() {
 fn setter_called_twice_keeps_last_value() {
     let built = TimeSpan::builder().days(1).days(2).build();
 
-    assert_eq!(built, TimeSpan::from_dhms(2, 0, 0, 0));
+    assert_eq!(built, Ok(TimeSpan::from_ticks(1_728_000_000_000)));
 }
 
 /// `build()` with no fields set at all is equivalent to `TimeSpan::ZERO`.
@@ -64,7 +65,7 @@ fn zero_default() {
 fn negative_components() {
     let built = TimeSpan::builder().days(-1).hours(-2).build();
 
-    assert_eq!(built, TimeSpan::from_dhms(-1, -2, 0, 0));
+    assert_eq!(built, Ok(TimeSpan::from_ticks(-936_000_000_000)));
 }
 
 /// A combined value overflowing the representable tick range is reported as

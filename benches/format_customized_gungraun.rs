@@ -17,7 +17,16 @@ use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
 use gungraun::prelude::*;
 use gungraun::{Callgrind, EventKind};
 
-const SAMPLE: fn() -> TimeSpan = || TimeSpan::from_dhms_milli(1, 2, 3, 4, 500).unwrap();
+const SAMPLE: fn() -> TimeSpan = || {
+    TimeSpan::builder()
+        .days(1)
+        .hours(2)
+        .minutes(3)
+        .seconds(4)
+        .milliseconds(500)
+        .build()
+        .unwrap()
+};
 
 /// Exercises 'd', 'h', 'm', 's', 'f', and '\\' (escaped literal separators) all in one
 /// format string — the same aggregate format the old single-case benchmarks used,
