@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::str::FromStr;
 
 use crate::error::TimeSpanError;
+use crate::time_span_builder::TimeSpanBuilder;
 
 /// A duration of time, represented as a number of 100-nanosecond ticks.
 ///
@@ -92,25 +93,9 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L233
     pub const MIN: TimeSpan = TimeSpan { ticks: i64::MIN };
 
-    /// Cf. TimeSpan.cs#L225-L226 (internal `MinDays`/`MaxDays`)
-    const MIN_DAYS: i64 = i64::MIN / Self::TICKS_PER_DAY;
-    const MAX_DAYS: i64 = i64::MAX / Self::TICKS_PER_DAY;
-
-    /// Cf. TimeSpan.cs#L222-L223 (internal `MinHours`/`MaxHours`)
-    const MIN_HOURS: i64 = i64::MIN / Self::TICKS_PER_HOUR;
-    const MAX_HOURS: i64 = i64::MAX / Self::TICKS_PER_HOUR;
-
-    /// Cf. TimeSpan.cs#L219-L220 (internal `MinMinutes`/`MaxMinutes`)
-    const MIN_MINUTES: i64 = i64::MIN / Self::TICKS_PER_MINUTE;
-    const MAX_MINUTES: i64 = i64::MAX / Self::TICKS_PER_MINUTE;
-
     /// Cf. TimeSpan.cs#L216-L217 (internal `MinSeconds`/`MaxSeconds`)
     const MIN_SECONDS: i64 = i64::MIN / Self::TICKS_PER_SECOND;
     const MAX_SECONDS: i64 = i64::MAX / Self::TICKS_PER_SECOND;
-
-    /// Cf. TimeSpan.cs#L213-L214 (internal `MinMilliseconds`/`MaxMilliseconds`)
-    const MIN_MILLISECONDS: i64 = i64::MIN / Self::TICKS_PER_MILLISECOND;
-    const MAX_MILLISECONDS: i64 = i64::MAX / Self::TICKS_PER_MILLISECOND;
 
     /// Cf. TimeSpan.cs#L210-L211 (internal `MinMicroseconds`/`MaxMicroseconds`)
     const MIN_MICROSECONDS: i64 = i64::MIN / Self::TICKS_PER_MICROSECOND;
@@ -146,14 +131,21 @@ impl TimeSpan {
     /// Sums days/hours/minutes/seconds/milliseconds/microseconds into a
     /// validated tick count. Same `i128` widening rationale as [`Self::time_to_ticks`].
     ///
+    /// Takes `i64` for all six components (rather than the `i32` the DHMS
+    /// constructor family below actually needs) so it can also serve as
+    /// [`TimeSpanBuilder::build`]'s widened-sum implementation, shared with the
+    /// single-value factories that delegate to the builder. `i128::from(i64)`
+    /// widens exactly like `i128::from(i32)` already did, so this is a
+    /// no-behavior-change widening for the existing `i32` callers.
+    ///
     /// Cf. TimeSpan.cs#L292-L306 (6-arg constructor body)
-    fn dhms_to_ticks(
-        days: i32,
-        hours: i32,
-        minutes: i32,
-        seconds: i32,
-        milliseconds: i32,
-        microseconds: i32,
+    pub(crate) fn dhms_to_ticks(
+        days: i64,
+        hours: i64,
+        minutes: i64,
+        seconds: i64,
+        milliseconds: i64,
+        microseconds: i64,
     ) -> Result<i64, TimeSpanError> {
         let total_microseconds = i128::from(days) * i128::from(Self::MICROSECONDS_PER_DAY)
             + i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
@@ -425,8 +417,36 @@ impl TimeSpan {
         microseconds: i32,
     ) -> Result<Self, TimeSpanError> {
         Ok(Self {
-            ticks: Self::dhms_to_ticks(days, hours, minutes, seconds, milliseconds, microseconds)?,
+            ticks: Self::dhms_to_ticks(
+                i64::from(days),
+                i64::from(hours),
+                i64::from(minutes),
+                i64::from(seconds),
+                i64::from(milliseconds),
+                i64::from(microseconds),
+            )?,
         })
+    }
+
+    /// Returns a fresh, all-zero [`TimeSpanBuilder`] — a fluent, Rust-idiomatic
+    /// alternative to the [`Self::from_hms`]/[`Self::from_dhms`]/
+    /// [`Self::from_dhms_milli`]/[`Self::from_dhms_micro`] constructor family and the
+    /// `*_parts` factories, unifying both around `i64` fields.
+    ///
+    /// ```
+    /// use cs_timespan_automated_v1::TimeSpan;
+    ///
+    /// let ts = TimeSpan::builder()
+    ///     .days(1)
+    ///     .hours(2)
+    ///     .minutes(30)
+    ///     .build()
+    ///     .unwrap();
+    /// assert_eq!(ts, TimeSpan::from_dhms(1, 2, 30, 0).unwrap());
+    /// ```
+    #[must_use]
+    pub fn builder() -> TimeSpanBuilder {
+        TimeSpanBuilder::default()
     }
 
     /// Cf. TimeSpan.cs#L394 (`static Compare`)
@@ -661,32 +681,6 @@ impl TimeSpan {
         Ok(TimeSpan { ticks })
     }
 
-    /// Bounds-checks a raw unit count against `[min_units, max_units]` before
-    /// converting to ticks. Shared by the single-argument integer `FromX`
-    /// overloads below (e.g. [`Self::from_days_i32`]) — a distinct validation
-    /// path from both the `f64`/`Interval`-based overloads (e.g.
-    /// [`Self::from_days`]) and the multi-component `_parts` constructors (e.g.
-    /// [`Self::from_days_parts`]).
-    ///
-    /// `min_units`/`max_units` are always `i64::MIN`/`i64::MAX` divided by
-    /// `ticks_per_unit` (truncating division), so `units * ticks_per_unit` can't
-    /// overflow once `units` has passed the range check.
-    ///
-    /// Cf. TimeSpan.cs#L433-L444 (private `FromUnits`)
-    fn from_units(
-        units: i64,
-        ticks_per_unit: i64,
-        min_units: i64,
-        max_units: i64,
-    ) -> Result<Self, TimeSpanError> {
-        if units > max_units || units < min_units {
-            return Err(TimeSpanError::Overflow);
-        }
-        Ok(TimeSpan {
-            ticks: units * ticks_per_unit,
-        })
-    }
-
     /// # Errors
     ///
     /// Returns [`TimeSpanError::NotANumber`] if `value` is NaN, or
@@ -705,11 +699,15 @@ impl TimeSpan {
     }
 
     /// Single-argument integer overload, bounds-checked against the whole-day
-    /// range via [`Self::from_units`] — distinct from [`Self::from_days`]'s
-    /// `f64`/`Interval`-based overload and [`Self::from_days_parts`]'s
-    /// multi-component constructor. Named `_i32` (rather than reusing
-    /// `from_days`) because Rust doesn't support overloading by parameter type,
-    /// unlike C#'s `FromDays(int)`/`FromDays(double)` pair.
+    /// range — distinct from [`Self::from_days`]'s `f64`/`Interval`-based
+    /// overload and [`Self::from_days_parts`]'s multi-component constructor.
+    /// Named `_i32` (rather than reusing `from_days`) because Rust doesn't
+    /// support overloading by parameter type, unlike C#'s `FromDays(int)`/
+    /// `FromDays(double)` pair.
+    ///
+    /// Delegates to [`Self::builder`]: empirically verified (at `MAX_DAYS`,
+    /// `MAX_DAYS + 1`, `MIN_DAYS`, `MIN_DAYS - 1`, and interior values) to agree
+    /// exactly with the direct bounds-check this used before delegating.
     ///
     /// # Errors
     ///
@@ -718,12 +716,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L455
     pub fn from_days_i32(days: i32) -> Result<Self, TimeSpanError> {
-        Self::from_units(
-            i64::from(days),
-            Self::TICKS_PER_DAY,
-            Self::MIN_DAYS,
-            Self::MAX_DAYS,
-        )
+        Self::builder().days(i64::from(days)).build()
     }
 
     /// Bounds-checks a microsecond count already widened to `i128` and converts it
@@ -794,9 +787,12 @@ impl TimeSpan {
     }
 
     /// Single-argument integer overload, bounds-checked against the whole-hour
-    /// range via [`Self::from_units`] — distinct from [`Self::from_hours`]'s
-    /// `f64`/`Interval`-based overload and [`Self::from_hours_parts`]'s
-    /// multi-component constructor.
+    /// range — distinct from [`Self::from_hours`]'s `f64`/`Interval`-based
+    /// overload and [`Self::from_hours_parts`]'s multi-component constructor.
+    ///
+    /// Delegates to [`Self::builder`]: empirically verified (at `MAX_HOURS`,
+    /// `MAX_HOURS + 1`, `MIN_HOURS`, `MIN_HOURS - 1`, and interior values) to
+    /// agree exactly with the direct bounds-check this used before delegating.
     ///
     /// # Errors
     ///
@@ -805,12 +801,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L492
     pub fn from_hours_i32(hours: i32) -> Result<Self, TimeSpanError> {
-        Self::from_units(
-            i64::from(hours),
-            Self::TICKS_PER_HOUR,
-            Self::MIN_HOURS,
-            Self::MAX_HOURS,
-        )
+        Self::builder().hours(i64::from(hours)).build()
     }
 
     /// # Errors
@@ -854,10 +845,15 @@ impl TimeSpan {
     }
 
     /// Single-argument integer overload, bounds-checked against the
-    /// whole-minute range via [`Self::from_units`] — distinct from
-    /// [`Self::from_minutes`]'s `f64`/`Interval`-based overload and
-    /// [`Self::from_minutes_parts`]'s multi-component constructor. Takes `i64`
-    /// (rather than `i32`) matching C#'s `FromMinutes(long)`.
+    /// whole-minute range — distinct from [`Self::from_minutes`]'s
+    /// `f64`/`Interval`-based overload and [`Self::from_minutes_parts`]'s
+    /// multi-component constructor. Takes `i64` (rather than `i32`) matching
+    /// C#'s `FromMinutes(long)`.
+    ///
+    /// Delegates to [`Self::builder`]: empirically verified (at `MAX_MINUTES`,
+    /// `MAX_MINUTES + 1`, `MIN_MINUTES`, `MIN_MINUTES - 1`, and interior values)
+    /// to agree exactly with the direct bounds-check this used before
+    /// delegating.
     ///
     /// # Errors
     ///
@@ -866,12 +862,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L527
     pub fn from_minutes_i64(minutes: i64) -> Result<Self, TimeSpanError> {
-        Self::from_units(
-            minutes,
-            Self::TICKS_PER_MINUTE,
-            Self::MIN_MINUTES,
-            Self::MAX_MINUTES,
-        )
+        Self::builder().minutes(minutes).build()
     }
 
     /// # Errors
@@ -913,10 +904,15 @@ impl TimeSpan {
     }
 
     /// Single-argument integer overload, bounds-checked against the
-    /// whole-second range via [`Self::from_units`] — distinct from
-    /// [`Self::from_seconds`]'s `f64`/`Interval`-based overload and
-    /// [`Self::from_seconds_parts`]'s multi-component constructor. Takes `i64`
-    /// (rather than `i32`) matching C#'s `FromSeconds(long)`.
+    /// whole-second range — distinct from [`Self::from_seconds`]'s
+    /// `f64`/`Interval`-based overload and [`Self::from_seconds_parts`]'s
+    /// multi-component constructor. Takes `i64` (rather than `i32`) matching
+    /// C#'s `FromSeconds(long)`.
+    ///
+    /// Delegates to [`Self::builder`]: empirically verified (at `MAX_SECONDS`,
+    /// `MAX_SECONDS + 1`, `MIN_SECONDS`, `MIN_SECONDS - 1`, and interior values)
+    /// to agree exactly with the direct bounds-check this used before
+    /// delegating.
     ///
     /// # Errors
     ///
@@ -925,12 +921,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L560
     pub fn from_seconds_i64(seconds: i64) -> Result<Self, TimeSpanError> {
-        Self::from_units(
-            seconds,
-            Self::TICKS_PER_SECOND,
-            Self::MIN_SECONDS,
-            Self::MAX_SECONDS,
-        )
+        Self::builder().seconds(seconds).build()
     }
 
     /// # Errors
@@ -970,10 +961,15 @@ impl TimeSpan {
     }
 
     /// Single-argument integer overload, bounds-checked against the
-    /// whole-millisecond range via [`Self::from_units`] — distinct from
-    /// [`Self::from_milliseconds`]'s `f64`/`Interval`-based overload and
-    /// [`Self::from_milliseconds_parts`]'s multi-component constructor. Takes
-    /// `i64` (rather than `i32`) matching C#'s `FromMilliseconds(long)`.
+    /// whole-millisecond range — distinct from [`Self::from_milliseconds`]'s
+    /// `f64`/`Interval`-based overload and [`Self::from_milliseconds_parts`]'s
+    /// multi-component constructor. Takes `i64` (rather than `i32`) matching
+    /// C#'s `FromMilliseconds(long)`.
+    ///
+    /// Delegates to [`Self::builder`]: empirically verified (at
+    /// `MAX_MILLISECONDS`, `MAX_MILLISECONDS + 1`, `MIN_MILLISECONDS`,
+    /// `MIN_MILLISECONDS - 1`, and interior values) to agree exactly with the
+    /// direct bounds-check this used before delegating.
     ///
     /// # Errors
     ///
@@ -982,12 +978,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L591-L592
     pub fn from_milliseconds_i64(milliseconds: i64) -> Result<Self, TimeSpanError> {
-        Self::from_units(
-            milliseconds,
-            Self::TICKS_PER_MILLISECOND,
-            Self::MIN_MILLISECONDS,
-            Self::MAX_MILLISECONDS,
-        )
+        Self::builder().milliseconds(milliseconds).build()
     }
 
     /// # Errors
@@ -1026,11 +1017,16 @@ impl TimeSpan {
     }
 
     /// Single-argument integer overload, bounds-checked against the
-    /// whole-microsecond range via [`Self::from_units`] — distinct from
-    /// [`Self::from_microseconds`]'s `f64`/`Interval`-based overload and the
-    /// multi-component `_parts` constructors (which go through
-    /// [`Self::from_microseconds_i128`] instead). Takes `i64` (rather than
-    /// `i32`) matching C#'s `FromMicroseconds(long)`.
+    /// whole-microsecond range — distinct from [`Self::from_microseconds`]'s
+    /// `f64`/`Interval`-based overload and the multi-component `_parts`
+    /// constructors (which go through [`Self::from_microseconds_i128`]
+    /// instead). Takes `i64` (rather than `i32`) matching C#'s
+    /// `FromMicroseconds(long)`.
+    ///
+    /// Delegates to [`Self::builder`]: empirically verified (at
+    /// `MAX_MICROSECONDS`, `MAX_MICROSECONDS + 1`, `MIN_MICROSECONDS`,
+    /// `MIN_MICROSECONDS - 1`, and interior values) to agree exactly with the
+    /// direct bounds-check this used before delegating.
     ///
     /// # Errors
     ///
@@ -1039,12 +1035,7 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpan.cs#L632
     pub fn from_microseconds_i64(microseconds: i64) -> Result<Self, TimeSpanError> {
-        Self::from_units(
-            microseconds,
-            Self::TICKS_PER_MICROSECOND,
-            Self::MIN_MICROSECONDS,
-            Self::MAX_MICROSECONDS,
-        )
+        Self::builder().microseconds(microseconds).build()
     }
 
     /// Formats `self` using the given standard or custom format string, mirroring C#'s
