@@ -7,56 +7,89 @@ use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
 /// (TimeSpanTests.cs#L1686-L1695), minus its `Assert.Equal(timeSpan, +timeSpan)`
 /// check: C# ports the unary `+` operator as an identity, but Rust has no unary `+`
 /// operator to overload, so there is nothing to port for that assertion.
-fn verify_time_span(
-    ts: TimeSpan,
-    days: i32,
-    hours: i32,
-    minutes: i32,
-    seconds: i32,
-    milliseconds: i32,
-) {
-    assert_eq!(days, ts.days());
-    assert_eq!(hours, ts.hours());
-    assert_eq!(minutes, ts.minutes());
-    assert_eq!(seconds, ts.seconds());
-    assert_eq!(milliseconds, ts.milliseconds());
+///
+/// A `macro_rules!` rather than a plain function: a failing `assert_eq!` inside a
+/// function reports the function's own line, not the calling test's — a macro
+/// reports the call site, matching the standard library's own `assert_eq!`
+/// convention and making failures point at the test (and arguments) that failed.
+macro_rules! assert_time_span {
+    ($ts:expr, $days:expr, $hours:expr, $minutes:expr, $seconds:expr, $milliseconds:expr) => {
+        let ts = $ts;
+        assert_eq!($days, ts.days());
+        assert_eq!($hours, ts.hours());
+        assert_eq!($minutes, ts.minutes());
+        assert_eq!($seconds, ts.seconds());
+        assert_eq!($milliseconds, ts.milliseconds());
+    };
+}
+
+/// Mirrors the C# test helper's 6-arg overload, which adds a `Microseconds` check
+/// on top of the 5-arg helper.
+///
+/// Cf. TimeSpanTests.cs#L1697-L1702
+macro_rules! assert_time_span_micro {
+    ($ts:expr, $days:expr, $hours:expr, $minutes:expr, $seconds:expr, $milliseconds:expr, $microseconds:expr) => {
+        let ts = $ts;
+        assert_time_span!(ts, $days, $hours, $minutes, $seconds, $milliseconds);
+        assert_eq!($microseconds, ts.microseconds());
+    };
+}
+
+/// Mirrors the C# test helper's 7-arg overload, which adds a `Nanoseconds` check
+/// on top of the 6-arg helper.
+///
+/// Cf. TimeSpanTests.cs#L1704-L1709
+macro_rules! assert_time_span_nano {
+    ($ts:expr, $days:expr, $hours:expr, $minutes:expr, $seconds:expr, $milliseconds:expr, $microseconds:expr, $nanoseconds:expr) => {
+        let ts = $ts;
+        assert_time_span_micro!(
+            ts,
+            $days,
+            $hours,
+            $minutes,
+            $seconds,
+            $milliseconds,
+            $microseconds
+        );
+        assert_eq!($nanoseconds, ts.nanoseconds());
+    };
 }
 
 /// Cf. TimeSpanTests.cs#L15-19
 #[test]
 fn max_value() {
-    verify_time_span(TimeSpan::MAX, 10675199, 2, 48, 5, 477);
+    assert_time_span!(TimeSpan::MAX, 10675199, 2, 48, 5, 477);
 }
 
 /// Cf. TimeSpanTests.cs#L21-25
 #[test]
 fn min_value() {
-    verify_time_span(TimeSpan::MIN, -10675199, -2, -48, -5, -477);
+    assert_time_span!(TimeSpan::MIN, -10675199, -2, -48, -5, -477);
 }
 
 /// Cf. TimeSpanTests.cs#L27-31
 #[test]
 fn zero() {
-    verify_time_span(TimeSpan::ZERO, 0, 0, 0, 0, 0);
+    assert_time_span!(TimeSpan::ZERO, 0, 0, 0, 0, 0);
 }
 
 /// Cf. TimeSpanTests.cs#L33-38 (`Ctor_Empty`). C# tests both `new TimeSpan()` and
 /// `default(TimeSpan)`; Rust's `Default` impl is the equivalent of both.
 #[test]
 fn ctor_empty() {
-    verify_time_span(TimeSpan::default(), 0, 0, 0, 0, 0);
+    assert_time_span!(TimeSpan::default(), 0, 0, 0, 0, 0);
 }
 
 /// Cf. TimeSpanTests.cs#L40-44
 #[test]
 fn ctor_long() {
-    verify_time_span(
+    assert_time_span!(
         TimeSpan::from_ticks(999999999999999999),
         1157407,
         9,
         46,
         39,
-        999,
+        999
     );
 }
 
@@ -174,49 +207,6 @@ fn static_compare() {
     );
 }
 
-/// Mirrors the C# test helper's 6-arg overload, which adds a `Microseconds` check
-/// on top of the 5-arg helper.
-///
-/// Cf. TimeSpanTests.cs#L1697-L1702
-fn verify_time_span_micro(
-    ts: TimeSpan,
-    days: i32,
-    hours: i32,
-    minutes: i32,
-    seconds: i32,
-    milliseconds: i32,
-    microseconds: i32,
-) {
-    verify_time_span(ts, days, hours, minutes, seconds, milliseconds);
-    assert_eq!(microseconds, ts.microseconds());
-}
-
-/// Mirrors the C# test helper's 7-arg overload, which adds a `Nanoseconds` check
-/// on top of the 6-arg helper.
-///
-/// Cf. TimeSpanTests.cs#L1704-L1709
-fn verify_time_span_nano(
-    ts: TimeSpan,
-    days: i32,
-    hours: i32,
-    minutes: i32,
-    seconds: i32,
-    milliseconds: i32,
-    microseconds: i32,
-    nanoseconds: i32,
-) {
-    verify_time_span_micro(
-        ts,
-        days,
-        hours,
-        minutes,
-        seconds,
-        milliseconds,
-        microseconds,
-    );
-    assert_eq!(nanoseconds, ts.nanoseconds());
-}
-
 /// Cf. TimeSpanTests.cs#L87-92 (`Ctor_Int_Int_Int_Int_Int_Int`). The C# case is
 /// built via the 6-component constructor, which isn't implemented yet; rebuilt here
 /// from an equivalent tick count using the already-real per-unit constants.
@@ -229,7 +219,7 @@ fn ctor_dhms_micro_equivalent() {
         + 6 * TimeSpan::TICKS_PER_MILLISECOND
         + 5 * TimeSpan::TICKS_PER_MICROSECOND;
 
-    verify_time_span_micro(TimeSpan::from_ticks(ticks), 10, 9, 8, 7, 6, 5);
+    assert_time_span_micro!(TimeSpan::from_ticks(ticks), 10, 9, 8, 7, 6, 5);
 }
 
 /// Cf. TimeSpanTests.cs#L114-124 (`Ctor_Int_Int_Int_Int_Int_Int_WithNanosecond`).
@@ -247,7 +237,7 @@ fn ctor_dhms_micro_with_nanosecond_equivalent() {
 
     for nanoseconds in [100i32, 300, 900] {
         let ts = TimeSpan::from_ticks(base_ticks + (nanoseconds / 100) as i64);
-        verify_time_span_nano(ts, 10, 9, 8, 7, 6, 5, nanoseconds);
+        assert_time_span_nano!(ts, 10, 9, 8, 7, 6, 5, nanoseconds);
     }
 }
 
@@ -275,7 +265,7 @@ fn total_nanoseconds() {
 #[test]
 fn ctor_hms() {
     let time_span = TimeSpan::from_hms(10, 9, 8).unwrap();
-    verify_time_span(time_span, 0, 10, 9, 8, 0);
+    assert_time_span!(time_span, 0, 10, 9, 8, 0);
 }
 
 /// Cf. TimeSpanTests.cs#L53-L58 (`Ctor_Int_Int_Int_Invalid`)
@@ -291,14 +281,14 @@ fn ctor_hms_invalid() {
 #[test]
 fn ctor_dhms() {
     let time_span = TimeSpan::from_dhms(10, 9, 8, 7).unwrap();
-    verify_time_span(time_span, 10, 9, 8, 7, 0);
+    assert_time_span!(time_span, 10, 9, 8, 7, 0);
 }
 
 /// Cf. TimeSpanTests.cs#L60-L65 (`Ctor_Int_Int_Int_Int_Int`)
 #[test]
 fn ctor_dhms_milli() {
     let time_span = TimeSpan::from_dhms_milli(10, 9, 8, 7, 6).unwrap();
-    verify_time_span(time_span, 10, 9, 8, 7, 6);
+    assert_time_span!(time_span, 10, 9, 8, 7, 6);
 }
 
 /// Cf. TimeSpanTests.cs#L67-L85 (`Ctor_Int_Int_Int_Int_Int_Invalid`)
@@ -413,7 +403,7 @@ fn ctor_dhms_milli_invalid() {
 #[test]
 fn ctor_dhms_micro() {
     let time_span = TimeSpan::from_dhms_micro(10, 9, 8, 7, 6, 5).unwrap();
-    verify_time_span_micro(time_span, 10, 9, 8, 7, 6, 5);
+    assert_time_span_micro!(time_span, 10, 9, 8, 7, 6, 5);
 }
 
 /// Cf. TimeSpanTests.cs#L94-L112 (`Ctor_Int_Int_Int_Int_Int_Int_Invalid`)
