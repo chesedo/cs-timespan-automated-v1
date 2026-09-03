@@ -245,12 +245,17 @@ fn divide_time_span_method_matches_operator() {
 fn multiplication_test_data() -> [(TimeSpan, f64, TimeSpan); 8] {
     [
         (
-            TimeSpan::from_hms(2, 30, 0).unwrap(),
+            TimeSpan::builder().hours(2).minutes(30).build().unwrap(),
             2.0,
-            TimeSpan::from_hms(5, 0, 0).unwrap(),
+            TimeSpan::builder().hours(5).build().unwrap(),
         ),
         (
-            TimeSpan::from_dhms(14, 2, 30, 0).unwrap(),
+            TimeSpan::builder()
+                .days(14)
+                .hours(2)
+                .minutes(30)
+                .build()
+                .unwrap(),
             192.0,
             TimeSpan::from_days_i32(2708).unwrap(),
         ),
