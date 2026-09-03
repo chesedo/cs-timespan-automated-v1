@@ -94,15 +94,22 @@ fn ctor_long() {
 }
 
 /// Cf. TimeSpanTests.cs#L126-145 (`Total_Days_Hours_Minutes_Seconds_Milliseconds`).
-/// The C# cases are built via the multi-component constructor, which isn't
-/// implemented yet; each case here is rebuilt from an equivalent tick count using
-/// the already-real per-unit constants instead.
+/// Each case is built via the real multi-component constructor
+/// (`TimeSpan::from_dhms_milli`), matching the C# test's own use of its
+/// multi-component constructor.
 #[test]
 fn total_days_hours_minutes_seconds_milliseconds() {
     let cases: [(i64, f64, f64, f64, f64, f64); 5] = [
-        (0, 0.0, 0.0, 0.0, 0.0, 0.0),
         (
-            500 * TimeSpan::TICKS_PER_MILLISECOND,
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 0).unwrap().ticks(),
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ),
+        (
+            TimeSpan::from_dhms_milli(0, 0, 0, 0, 500).unwrap().ticks(),
             0.5 / 60.0 / 60.0 / 24.0,
             0.5 / 60.0 / 60.0,
             0.5 / 60.0,
@@ -110,7 +117,7 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             500.0,
         ),
         (
-            TimeSpan::TICKS_PER_HOUR,
+            TimeSpan::from_dhms_milli(0, 1, 0, 0, 0).unwrap().ticks(),
             1.0 / 24.0,
             1.0,
             60.0,
@@ -118,7 +125,7 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             3_600_000.0,
         ),
         (
-            TimeSpan::TICKS_PER_DAY,
+            TimeSpan::from_dhms_milli(1, 0, 0, 0, 0).unwrap().ticks(),
             1.0,
             24.0,
             1440.0,
@@ -126,7 +133,7 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             86_400_000.0,
         ),
         (
-            TimeSpan::TICKS_PER_DAY + TimeSpan::TICKS_PER_HOUR,
+            TimeSpan::from_dhms_milli(1, 1, 0, 0, 0).unwrap().ticks(),
             25.0 / 24.0,
             25.0,
             1500.0,
@@ -207,33 +214,30 @@ fn static_compare() {
     );
 }
 
-/// Cf. TimeSpanTests.cs#L87-92 (`Ctor_Int_Int_Int_Int_Int_Int`). The C# case is
-/// built via the 6-component constructor, which isn't implemented yet; rebuilt here
-/// from an equivalent tick count using the already-real per-unit constants.
+/// Cf. TimeSpanTests.cs#L87-92 (`Ctor_Int_Int_Int_Int_Int_Int`). Built via the real
+/// 6-component constructor (`TimeSpan::from_dhms_micro`), matching the C# test.
 #[test]
 fn ctor_dhms_micro_equivalent() {
-    let ticks = 10 * TimeSpan::TICKS_PER_DAY
-        + 9 * TimeSpan::TICKS_PER_HOUR
-        + 8 * TimeSpan::TICKS_PER_MINUTE
-        + 7 * TimeSpan::TICKS_PER_SECOND
-        + 6 * TimeSpan::TICKS_PER_MILLISECOND
-        + 5 * TimeSpan::TICKS_PER_MICROSECOND;
-
-    assert_time_span_micro!(TimeSpan::from_ticks(ticks), 10, 9, 8, 7, 6, 5);
+    assert_time_span_micro!(
+        TimeSpan::from_dhms_micro(10, 9, 8, 7, 6, 5).unwrap(),
+        10,
+        9,
+        8,
+        7,
+        6,
+        5
+    );
 }
 
 /// Cf. TimeSpanTests.cs#L114-124 (`Ctor_Int_Int_Int_Int_Int_Int_WithNanosecond`).
-/// Same adaptation as above: builds the base instant from ticks instead of the
-/// still-stubbed constructor, then adds the extra ticks a nanosecond remainder
+/// Builds the base instant via the real 6-component constructor
+/// (`TimeSpan::from_dhms_micro`), then adds the extra ticks a nanosecond remainder
 /// would contribute, exactly as the C# test does.
 #[test]
 fn ctor_dhms_micro_with_nanosecond_equivalent() {
-    let base_ticks = 10 * TimeSpan::TICKS_PER_DAY
-        + 9 * TimeSpan::TICKS_PER_HOUR
-        + 8 * TimeSpan::TICKS_PER_MINUTE
-        + 7 * TimeSpan::TICKS_PER_SECOND
-        + 6 * TimeSpan::TICKS_PER_MILLISECOND
-        + 5 * TimeSpan::TICKS_PER_MICROSECOND;
+    let base_ticks = TimeSpan::from_dhms_micro(10, 9, 8, 7, 6, 5)
+        .unwrap()
+        .ticks();
 
     for nanoseconds in [100i32, 300, 900] {
         let ts = TimeSpan::from_ticks(base_ticks + (nanoseconds / 100) as i64);
