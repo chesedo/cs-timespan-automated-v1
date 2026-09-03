@@ -214,28 +214,19 @@ fn static_compare() {
     );
 }
 
-/// Cf. TimeSpanTests.cs#L87-92 (`Ctor_Int_Int_Int_Int_Int_Int`). Built via the real
-/// 6-component constructor (`TimeSpan::from_dhms_micro`), matching the C# test.
-#[test]
-fn ctor_dhms_micro_equivalent() {
-    assert_time_span_micro!(
-        TimeSpan::from_dhms_micro(10, 9, 8, 7, 6, 5).unwrap(),
-        10,
-        9,
-        8,
-        7,
-        6,
-        5
-    );
-}
-
 /// Cf. TimeSpanTests.cs#L114-124 (`Ctor_Int_Int_Int_Int_Int_Int_WithNanosecond`).
-/// Builds the base instant via the real 6-component constructor
-/// (`TimeSpan::from_dhms_micro`), then adds the extra ticks a nanosecond remainder
-/// would contribute, exactly as the C# test does.
+/// Builds the base instant via `TimeSpan::builder()`, then adds the extra ticks a
+/// nanosecond remainder would contribute, exactly as the C# test does.
 #[test]
-fn ctor_dhms_micro_with_nanosecond_equivalent() {
-    let base_ticks = TimeSpan::from_dhms_micro(10, 9, 8, 7, 6, 5)
+fn dhms_builder_with_nanosecond_equivalent() {
+    let base_ticks = TimeSpan::builder()
+        .days(10)
+        .hours(9)
+        .minutes(8)
+        .seconds(7)
+        .milliseconds(6)
+        .microseconds(5)
+        .build()
         .unwrap()
         .ticks();
 
@@ -265,295 +256,279 @@ fn total_nanoseconds() {
     }
 }
 
-/// Cf. TimeSpanTests.cs#L46-L51 (`Ctor_Int_Int_Int`)
+/// Valid multi-component constructions via `TimeSpan::builder()`, covering what
+/// `from_hms`/`from_dhms`/`from_dhms_milli`/`from_dhms_micro` each added over the
+/// previous: each case sets one more trailing component than the last, mirroring how
+/// the old functions nested (`from_dhms` = `from_dhms_milli` with `milliseconds = 0`,
+/// TimeSpan.cs#L249-L252) and how `TimeSpanBuilder` defaults every unset field to `0`.
+///
+/// Cf. TimeSpanTests.cs#L46-L51 (`Ctor_Int_Int_Int`), #L60-L65
+/// (`Ctor_Int_Int_Int_Int_Int`), #L87-L92 (`Ctor_Int_Int_Int_Int_Int_Int`)
 #[test]
-fn ctor_hms() {
-    let time_span = TimeSpan::from_hms(10, 9, 8).unwrap();
-    assert_time_span!(time_span, 0, 10, 9, 8, 0);
+fn dhms_builder_valid() {
+    let cases: [(TimeSpan, i32, i32, i32, i32, i32, i32); 4] = [
+        // Cf. TimeSpanTests.cs#L46-L51 (`Ctor_Int_Int_Int`)
+        (
+            TimeSpan::builder()
+                .hours(10)
+                .minutes(9)
+                .seconds(8)
+                .build()
+                .unwrap(),
+            0,
+            10,
+            9,
+            8,
+            0,
+            0,
+        ),
+        // Sanity coverage for the days+hours+minutes+seconds combination; the 4-arg
+        // `from_dhms` constructor has no dedicated upstream test of its own (C#
+        // defines it purely as a delegation to the 5-arg overload with
+        // `milliseconds = 0`, TimeSpan.cs#L249-L252).
+        (
+            TimeSpan::builder()
+                .days(10)
+                .hours(9)
+                .minutes(8)
+                .seconds(7)
+                .build()
+                .unwrap(),
+            10,
+            9,
+            8,
+            7,
+            0,
+            0,
+        ),
+        // Cf. TimeSpanTests.cs#L60-L65 (`Ctor_Int_Int_Int_Int_Int`)
+        (
+            TimeSpan::builder()
+                .days(10)
+                .hours(9)
+                .minutes(8)
+                .seconds(7)
+                .milliseconds(6)
+                .build()
+                .unwrap(),
+            10,
+            9,
+            8,
+            7,
+            6,
+            0,
+        ),
+        // Cf. TimeSpanTests.cs#L87-L92 (`Ctor_Int_Int_Int_Int_Int_Int`). This case
+        // previously existed as two separate Rust tests (`ctor_dhms_micro` and
+        // `ctor_dhms_micro_equivalent`) that both built the exact same value from the
+        // exact same six inputs and asserted the exact same six components —
+        // genuinely redundant coverage of the same citation (the latter predates
+        // `from_dhms_micro`'s implementation, per issue #117), now merged into one
+        // row.
+        (
+            TimeSpan::builder()
+                .days(10)
+                .hours(9)
+                .minutes(8)
+                .seconds(7)
+                .milliseconds(6)
+                .microseconds(5)
+                .build()
+                .unwrap(),
+            10,
+            9,
+            8,
+            7,
+            6,
+            5,
+        ),
+    ];
+
+    for (ts, days, hours, minutes, seconds, milliseconds, microseconds) in cases {
+        assert_time_span_micro!(
+            ts,
+            days,
+            hours,
+            minutes,
+            seconds,
+            milliseconds,
+            microseconds
+        );
+    }
 }
 
-/// Cf. TimeSpanTests.cs#L53-L58 (`Ctor_Int_Int_Int_Invalid`)
+/// Every multi-component overflow case for the DHMS constructor family, each
+/// asserting `TimeSpanError::Overflow` per this crate's established convention (#119)
+/// rather than a bare `is_err()`.
+///
+/// Cf. TimeSpanTests.cs#L53-L58 (`Ctor_Int_Int_Int_Invalid`), #L67-L85
+/// (`Ctor_Int_Int_Int_Int_Int_Invalid`), #L94-L112
+/// (`Ctor_Int_Int_Int_Int_Int_Int_Invalid`)
 #[test]
-fn ctor_hms_invalid() {
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hms(TimeSpan::MIN.total_hours() as i32 - 1, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hms(TimeSpan::MAX.total_hours() as i32 + 1, 0, 0)
-    );
-}
-
-/// Sanity coverage for the 4-arg constructor, which C# defines purely as a
-/// delegation to the 5-arg overload with `milliseconds = 0` (TimeSpan.cs#L249-L252)
-/// and has no dedicated upstream test of its own.
-#[test]
-fn ctor_dhms() {
-    let time_span = TimeSpan::from_dhms(10, 9, 8, 7).unwrap();
-    assert_time_span!(time_span, 10, 9, 8, 7, 0);
-}
-
-/// Cf. TimeSpanTests.cs#L60-L65 (`Ctor_Int_Int_Int_Int_Int`)
-#[test]
-fn ctor_dhms_milli() {
-    let time_span = TimeSpan::from_dhms_milli(10, 9, 8, 7, 6).unwrap();
-    assert_time_span!(time_span, 10, 9, 8, 7, 6);
-}
-
-/// Cf. TimeSpanTests.cs#L67-L85 (`Ctor_Int_Int_Int_Int_Int_Invalid`)
-#[test]
-fn ctor_dhms_milli_invalid() {
+fn dhms_builder_overflow() {
     let min = TimeSpan::MIN;
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            min.days() - 1,
-            min.hours(),
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            min.days(),
-            min.hours() - 1,
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            min.days(),
-            min.hours(),
-            min.minutes() - 1,
-            min.seconds(),
-            min.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            min.days(),
-            min.hours(),
-            min.minutes(),
-            min.seconds() - 1,
-            min.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            min.days(),
-            min.hours(),
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds() - 1
-        )
-    );
-
     let max = TimeSpan::MAX;
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            max.days() + 1,
-            max.hours(),
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            max.days(),
-            max.hours() + 1,
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            max.days(),
-            max.hours(),
-            max.minutes() + 1,
-            max.seconds(),
-            max.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            max.days(),
-            max.hours(),
-            max.minutes(),
-            max.seconds() + 1,
-            max.milliseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_milli(
-            max.days(),
-            max.hours(),
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds() + 1
-        )
-    );
-}
 
-/// Cf. TimeSpanTests.cs#L87-L92 (`Ctor_Int_Int_Int_Int_Int_Int`)
-#[test]
-fn ctor_dhms_micro() {
-    let time_span = TimeSpan::from_dhms_micro(10, 9, 8, 7, 6, 5).unwrap();
-    assert_time_span_micro!(time_span, 10, 9, 8, 7, 6, 5);
-}
+    let cases = [
+        // Cf. TimeSpanTests.cs#L53-L58 (`Ctor_Int_Int_Int_Invalid`): the 3-arg
+        // overload's own hours-only range check, using `total_hours()` rather than
+        // per-component boundaries (the other components are always `0` here).
+        TimeSpan::builder().hours(min.total_hours() as i64 - 1),
+        TimeSpan::builder().hours(max.total_hours() as i64 + 1),
+        // Cf. TimeSpanTests.cs#L67-L85 (`Ctor_Int_Int_Int_Int_Int_Invalid`): each of
+        // the 5 components pushed one past `MIN`/`MAX`, every other component held at
+        // that extreme's own value.
+        TimeSpan::builder()
+            .days(i64::from(min.days()) - 1)
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()) - 1)
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()) - 1)
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()) - 1)
+            .milliseconds(i64::from(min.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds()) - 1),
+        TimeSpan::builder()
+            .days(i64::from(max.days()) + 1)
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()) + 1)
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()) + 1)
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()) + 1)
+            .milliseconds(i64::from(max.milliseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds()) + 1),
+        // Cf. TimeSpanTests.cs#L94-L112 (`Ctor_Int_Int_Int_Int_Int_Int_Invalid`): same
+        // pattern, extended to the 6th (`microseconds`) component.
+        TimeSpan::builder()
+            .days(i64::from(min.days()) - 1)
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds()))
+            .microseconds(i64::from(min.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()) - 1)
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds()))
+            .microseconds(i64::from(min.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()) - 1)
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds()))
+            .microseconds(i64::from(min.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()) - 1)
+            .milliseconds(i64::from(min.milliseconds()))
+            .microseconds(i64::from(min.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds()) - 1)
+            .microseconds(i64::from(min.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(min.days()))
+            .hours(i64::from(min.hours()))
+            .minutes(i64::from(min.minutes()))
+            .seconds(i64::from(min.seconds()))
+            .milliseconds(i64::from(min.milliseconds()))
+            .microseconds(i64::from(min.microseconds()) - 1),
+        TimeSpan::builder()
+            .days(i64::from(max.days()) + 1)
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds()))
+            .microseconds(i64::from(max.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()) + 1)
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds()))
+            .microseconds(i64::from(max.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()) + 1)
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds()))
+            .microseconds(i64::from(max.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()) + 1)
+            .milliseconds(i64::from(max.milliseconds()))
+            .microseconds(i64::from(max.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds()) + 1)
+            .microseconds(i64::from(max.microseconds())),
+        TimeSpan::builder()
+            .days(i64::from(max.days()))
+            .hours(i64::from(max.hours()))
+            .minutes(i64::from(max.minutes()))
+            .seconds(i64::from(max.seconds()))
+            .milliseconds(i64::from(max.milliseconds()))
+            .microseconds(i64::from(max.microseconds()) + 1),
+    ];
 
-/// Cf. TimeSpanTests.cs#L94-L112 (`Ctor_Int_Int_Int_Int_Int_Int_Invalid`)
-#[test]
-fn ctor_dhms_micro_invalid() {
-    let min = TimeSpan::MIN;
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            min.days() - 1,
-            min.hours(),
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds(),
-            min.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            min.days(),
-            min.hours() - 1,
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds(),
-            min.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            min.days(),
-            min.hours(),
-            min.minutes() - 1,
-            min.seconds(),
-            min.milliseconds(),
-            min.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            min.days(),
-            min.hours(),
-            min.minutes(),
-            min.seconds() - 1,
-            min.milliseconds(),
-            min.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            min.days(),
-            min.hours(),
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds() - 1,
-            min.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            min.days(),
-            min.hours(),
-            min.minutes(),
-            min.seconds(),
-            min.milliseconds(),
-            min.microseconds() - 1
-        )
-    );
-
-    let max = TimeSpan::MAX;
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            max.days() + 1,
-            max.hours(),
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds(),
-            max.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            max.days(),
-            max.hours() + 1,
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds(),
-            max.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            max.days(),
-            max.hours(),
-            max.minutes() + 1,
-            max.seconds(),
-            max.milliseconds(),
-            max.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            max.days(),
-            max.hours(),
-            max.minutes(),
-            max.seconds() + 1,
-            max.milliseconds(),
-            max.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            max.days(),
-            max.hours(),
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds() + 1,
-            max.microseconds()
-        )
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_dhms_micro(
-            max.days(),
-            max.hours(),
-            max.minutes(),
-            max.seconds(),
-            max.milliseconds(),
-            max.microseconds() + 1
-        )
-    );
+    for builder in cases {
+        assert_eq!(Err(TimeSpanError::Overflow), builder.build());
+    }
 }
 
 /// The single-argument integer `FromDays`/etc. overloads are bounds-checked against
@@ -1169,243 +1144,205 @@ fn from_microseconds_max_ticks_boundary() {
 // `FromSeconds`/`FromMilliseconds`'s overloads with optional trailing parameters,
 // all delegating to the private `FromMicroseconds(Int128)` helper in C#. ---
 
-/// Cf. TimeSpan.cs#L471-L481 (`FromDays` 6-arg overload), TimeSpanTests.cs#L353-372
-/// (`FromDays_Int_Positive`/`FromDays_Int_Negative`/`FromDays_Int_Zero`)
-#[test]
-fn from_days_parts_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_dhms_micro(1, 2, 3, 4, 5, 6).unwrap()),
-        TimeSpan::from_days_parts(1, 2, 3, 4, 5, 6)
-    );
-    assert_eq!(
-        Ok(TimeSpan::from_dhms_micro(-1, -2, -3, -4, -5, -6).unwrap()),
-        TimeSpan::from_days_parts(-1, -2, -3, -4, -5, -6)
-    );
-    assert_eq!(
-        Ok(TimeSpan::ZERO),
-        TimeSpan::from_days_parts(0, 0, 0, 0, 0, 0)
-    );
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY)),
-        TimeSpan::from_days_parts(1, 0, 0, 0, 0, 0)
-    );
-}
-
-/// Two individually overflowing components with opposite sign should cancel out to
-/// a result close to zero rather than erroring, verifying the sum is widened to a
-/// wide-enough integer type before the range check — matching C#'s `Int128`-
-/// accumulated `totalMicroseconds` (`Math.BigMul` per term).
+/// Valid multi-component constructions via `TimeSpan::builder()`, covering what
+/// `from_days_parts`/`from_hours_parts`/`from_minutes_parts`/`from_seconds_parts`/
+/// `from_milliseconds_parts` each covered: one non-negative case and one all-negative
+/// case per function, using only the trailing components that function's own
+/// signature accepted. The five old functions' separate `(0, ..., 0) -> ZERO` checks
+/// are collapsed into the single all-zero row at the end — through
+/// `TimeSpan::builder()` they were all checking the exact same fact (every unset
+/// field defaults to `0`), so keeping five near-identical copies added no coverage.
 ///
-/// Cf. TimeSpanTests.cs#L455-476
-/// (`FromDays_Int_ShouldNotOverflow_WhenOverflowingParamIsCounteredByOppositeSignParam`)
+/// Cf. TimeSpan.cs#L471-L481 (`FromDays` 6-arg overload), TimeSpanTests.cs#L353-372
+/// (`FromDays_Int_Positive`/`FromDays_Int_Negative`/`FromDays_Int_Zero`);
+/// TimeSpan.cs#L507-L516 (`FromHours` 5-arg overload), TimeSpanTests.cs#L561-568
+/// (`FromHours_Int_ShouldCreate`); TimeSpan.cs#L541-L549 (`FromMinutes` 4-arg
+/// overload), TimeSpanTests.cs#L619-627 (`FromMinutes_Int_ShouldCreate`);
+/// TimeSpan.cs#L573-L580 (`FromSeconds` 3-arg overload), TimeSpanTests.cs#L672-680
+/// (`FromSeconds_Int_ShouldCreate`); TimeSpan.cs#L604-L610 (`FromMilliseconds` 2-arg
+/// overload), TimeSpanTests.cs#L710-724 (`FromMilliseconds_Int_ShouldCreate`)
 #[test]
-fn from_days_parts_opposite_sign_cancels_overflow() {
-    const MAX_DAYS: i32 = 10_675_199;
-    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+fn parts_builder_valid() {
+    let cases: [(TimeSpan, i32, i32, i32, i32, i32, i32); 12] = [
+        // from_days_parts
+        (
+            TimeSpan::builder()
+                .days(1)
+                .hours(2)
+                .minutes(3)
+                .seconds(4)
+                .milliseconds(5)
+                .microseconds(6)
+                .build()
+                .unwrap(),
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+        ),
+        (
+            TimeSpan::builder()
+                .days(-1)
+                .hours(-2)
+                .minutes(-3)
+                .seconds(-4)
+                .milliseconds(-5)
+                .microseconds(-6)
+                .build()
+                .unwrap(),
+            -1,
+            -2,
+            -3,
+            -4,
+            -5,
+            -6,
+        ),
+        (
+            TimeSpan::builder().days(1).build().unwrap(),
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ),
+        // from_hours_parts
+        (
+            TimeSpan::builder()
+                .hours(1)
+                .minutes(1)
+                .seconds(1)
+                .milliseconds(1)
+                .microseconds(1)
+                .build()
+                .unwrap(),
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+        ),
+        (
+            TimeSpan::builder()
+                .hours(-1)
+                .minutes(-1)
+                .seconds(-1)
+                .milliseconds(-1)
+                .microseconds(-1)
+                .build()
+                .unwrap(),
+            0,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+        ),
+        // from_minutes_parts
+        (
+            TimeSpan::builder()
+                .minutes(1)
+                .seconds(1)
+                .milliseconds(1)
+                .microseconds(1)
+                .build()
+                .unwrap(),
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+        ),
+        (
+            TimeSpan::builder()
+                .minutes(-1)
+                .seconds(-1)
+                .milliseconds(-1)
+                .microseconds(-1)
+                .build()
+                .unwrap(),
+            0,
+            0,
+            -1,
+            -1,
+            -1,
+            -1,
+        ),
+        // from_seconds_parts
+        (
+            TimeSpan::builder()
+                .seconds(1)
+                .milliseconds(1)
+                .microseconds(1)
+                .build()
+                .unwrap(),
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+        ),
+        (
+            TimeSpan::builder()
+                .seconds(-1)
+                .milliseconds(-1)
+                .microseconds(-1)
+                .build()
+                .unwrap(),
+            0,
+            0,
+            0,
+            -1,
+            -1,
+            -1,
+        ),
+        // from_milliseconds_parts
+        (
+            TimeSpan::builder()
+                .milliseconds(1)
+                .microseconds(1)
+                .build()
+                .unwrap(),
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+        ),
+        (
+            TimeSpan::builder()
+                .milliseconds(-1)
+                .microseconds(-1)
+                .build()
+                .unwrap(),
+            0,
+            0,
+            0,
+            0,
+            -1,
+            -1,
+        ),
+        // All-zero, replacing the five old `(0, ..., 0) -> ZERO` duplicate checks.
+        (TimeSpan::builder().build().unwrap(), 0, 0, 0, 0, 0, 0),
+    ];
 
-    let result =
-        TimeSpan::from_days_parts(MAX_DAYS + 1, 0, 0, 0, 0, -(MAX_MICROSECONDS + 1)).unwrap();
-    assert!(result > TimeSpan::from_days(-1.0).unwrap());
-    assert!(result < TimeSpan::from_days(1.0).unwrap());
-}
-
-/// Cf. TimeSpanTests.cs#L484-511 (`FromDays_Int_ShouldOverflow`)
-#[test]
-fn from_days_parts_overflow() {
-    const MAX_DAYS: i32 = 10_675_199;
-    const MAX_HOURS: i32 = 256_204_778;
-    const MAX_MINUTES: i64 = 15_372_286_728;
-    const MAX_SECONDS: i64 = 922_337_203_685;
-    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
-    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
-
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(MAX_DAYS + 1, 0, 0, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(-(MAX_DAYS + 1), 0, 0, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(0, MAX_HOURS + 1, 0, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(0, 0, MAX_MINUTES + 1, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(0, 0, 0, MAX_SECONDS + 1, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(0, 0, 0, 0, MAX_MILLISECONDS + 1, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(0, 0, 0, 0, 0, MAX_MICROSECONDS + 1)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(i32::MAX, i32::MAX, i64::MAX, i64::MAX, i64::MAX, i64::MAX)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_days_parts(i32::MIN, i32::MIN, i64::MIN, i64::MIN, i64::MIN, i64::MIN)
-    );
-}
-
-/// Cf. TimeSpan.cs#L507-L516 (`FromHours` 5-arg overload), TimeSpanTests.cs#L561-568
-/// (`FromHours_Int_ShouldCreate`)
-#[test]
-fn from_hours_parts_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            TimeSpan::TICKS_PER_HOUR
-                + TimeSpan::TICKS_PER_MINUTE
-                + TimeSpan::TICKS_PER_SECOND
-                + TimeSpan::TICKS_PER_MILLISECOND
-                + TimeSpan::TICKS_PER_MICROSECOND
-        )),
-        TimeSpan::from_hours_parts(1, 1, 1, 1, 1)
-    );
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            -(TimeSpan::TICKS_PER_HOUR
-                + TimeSpan::TICKS_PER_MINUTE
-                + TimeSpan::TICKS_PER_SECOND
-                + TimeSpan::TICKS_PER_MILLISECOND
-                + TimeSpan::TICKS_PER_MICROSECOND)
-        )),
-        TimeSpan::from_hours_parts(-1, -1, -1, -1, -1)
-    );
-    assert_eq!(
-        Ok(TimeSpan::ZERO),
-        TimeSpan::from_hours_parts(0, 0, 0, 0, 0)
-    );
-}
-
-/// Cf. TimeSpanTests.cs#L570-591 (`FromHours_Int_ShouldOverflow`)
-#[test]
-fn from_hours_parts_overflow() {
-    const MAX_HOURS: i32 = 256_204_778;
-    const MAX_MINUTES: i64 = 15_372_286_728;
-    const MAX_SECONDS: i64 = 922_337_203_685;
-    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
-    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
-
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hours_parts(MAX_HOURS + 1, 0, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hours_parts(-(MAX_HOURS + 1), 0, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hours_parts(0, MAX_MINUTES + 1, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hours_parts(0, 0, MAX_SECONDS + 1, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hours_parts(0, 0, 0, MAX_MILLISECONDS + 1, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_hours_parts(0, 0, 0, 0, MAX_MICROSECONDS + 1)
-    );
-}
-
-/// Cf. TimeSpan.cs#L541-L549 (`FromMinutes` 4-arg overload), TimeSpanTests.cs#L619-627
-/// (`FromMinutes_Int_ShouldCreate`)
-#[test]
-fn from_minutes_parts_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            TimeSpan::TICKS_PER_MINUTE
-                + TimeSpan::TICKS_PER_SECOND
-                + TimeSpan::TICKS_PER_MILLISECOND
-                + TimeSpan::TICKS_PER_MICROSECOND
-        )),
-        TimeSpan::from_minutes_parts(1, 1, 1, 1)
-    );
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            -(TimeSpan::TICKS_PER_MINUTE
-                + TimeSpan::TICKS_PER_SECOND
-                + TimeSpan::TICKS_PER_MILLISECOND
-                + TimeSpan::TICKS_PER_MICROSECOND)
-        )),
-        TimeSpan::from_minutes_parts(-1, -1, -1, -1)
-    );
-    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_minutes_parts(0, 0, 0, 0));
-}
-
-/// Cf. TimeSpanTests.cs#L629-637 (`FromMinutes_Int_ShouldOverflow`)
-#[test]
-fn from_minutes_parts_overflow() {
-    const MAX_MINUTES: i64 = 15_372_286_728;
-    const MAX_SECONDS: i64 = 922_337_203_685;
-    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
-    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
-
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(MAX_MINUTES + 1, 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(-(MAX_MINUTES + 1), 0, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(0, MAX_SECONDS + 1, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(0, 0, MAX_MILLISECONDS + 1, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(0, 0, 0, MAX_MICROSECONDS + 1)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(i64::MAX, i64::MAX, i64::MAX, i64::MAX)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_minutes_parts(i64::MIN, i64::MIN, i64::MIN, i64::MIN)
-    );
-}
-
-/// Cf. TimeSpan.cs#L573-L580 (`FromSeconds` 3-arg overload), TimeSpanTests.cs#L672-680
-/// (`FromSeconds_Int_ShouldCreate`)
-#[test]
-fn from_seconds_parts_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            TimeSpan::TICKS_PER_SECOND
-                + TimeSpan::TICKS_PER_MILLISECOND
-                + TimeSpan::TICKS_PER_MICROSECOND
-        )),
-        TimeSpan::from_seconds_parts(1, 1, 1)
-    );
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            -(TimeSpan::TICKS_PER_SECOND
-                + TimeSpan::TICKS_PER_MILLISECOND
-                + TimeSpan::TICKS_PER_MICROSECOND)
-        )),
-        TimeSpan::from_seconds_parts(-1, -1, -1)
-    );
-    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_seconds_parts(0, 0, 0));
+    for (ts, days, hours, minutes, seconds, milliseconds, microseconds) in cases {
+        assert_time_span_micro!(
+            ts,
+            days,
+            hours,
+            minutes,
+            seconds,
+            milliseconds,
+            microseconds
+        );
+    }
 }
 
 /// A naive `f64`-based conversion of `832` milliseconds could lose precision and
@@ -1415,102 +1352,129 @@ fn from_seconds_parts_basic() {
 /// Cf. TimeSpanTests.cs#L374-379 (`FromSeconds_Int_ShouldGiveResultWithPrecision`,
 /// citing https://github.com/dotnet/runtime/issues/93890)
 #[test]
-fn from_seconds_parts_precision() {
-    assert_eq!(
-        Ok(TimeSpan::from_dhms_micro(0, 0, 0, 101, 832, 0).unwrap()),
-        TimeSpan::from_seconds_parts(101, 832, 0)
+fn parts_builder_seconds_precision() {
+    // 101 raw seconds carries into 1 minute + 41 seconds once decomposed.
+    assert_time_span_micro!(
+        TimeSpan::builder()
+            .seconds(101)
+            .milliseconds(832)
+            .build()
+            .unwrap(),
+        0,
+        0,
+        1,
+        41,
+        832,
+        0
     );
 }
 
-/// Cf. TimeSpanTests.cs#L682-696 (`FromSeconds_Int_ShouldOverflow`)
+/// Two individually overflowing components with opposite sign should cancel out to
+/// a result close to zero rather than erroring, verifying the sum is widened to a
+/// wide-enough integer type before the range check — matching C#'s `Int128`-
+/// accumulated `totalMicroseconds` (`Math.BigMul` per term). `TimeSpanBuilder::build`
+/// uses the same widen-then-check logic (`TimeSpan::dhms_to_ticks`).
+///
+/// Cf. TimeSpanTests.cs#L455-476
+/// (`FromDays_Int_ShouldNotOverflow_WhenOverflowingParamIsCounteredByOppositeSignParam`)
 #[test]
-fn from_seconds_parts_overflow() {
+fn parts_builder_opposite_sign_cancels_overflow() {
+    const MAX_DAYS: i64 = 10_675_199;
+    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+
+    let result = TimeSpan::builder()
+        .days(MAX_DAYS + 1)
+        .microseconds(-(MAX_MICROSECONDS + 1))
+        .build()
+        .unwrap();
+    assert!(result > TimeSpan::from_days(-1.0).unwrap());
+    assert!(result < TimeSpan::from_days(1.0).unwrap());
+}
+
+/// Every multi-component overflow case for the five `*_parts` factories
+/// (`from_days_parts`/`from_hours_parts`/`from_minutes_parts`/`from_seconds_parts`/
+/// `from_milliseconds_parts`), each asserting `TimeSpanError::Overflow` per this
+/// crate's established convention (#119).
+///
+/// Cf. TimeSpanTests.cs#L484-511 (`FromDays_Int_ShouldOverflow`), #L570-591
+/// (`FromHours_Int_ShouldOverflow`), #L629-637 (`FromMinutes_Int_ShouldOverflow`),
+/// #L682-696 (`FromSeconds_Int_ShouldOverflow`), #L727-747
+/// (`FromMilliseconds_Int_ShouldOverflow`)
+#[test]
+fn parts_builder_overflow() {
+    const MAX_DAYS: i64 = 10_675_199;
+    const MAX_HOURS: i64 = 256_204_778;
+    const MAX_MINUTES: i64 = 15_372_286_728;
     const MAX_SECONDS: i64 = 922_337_203_685;
     const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
     const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
+    let i32_max = i64::from(i32::MAX);
+    let i32_min = i64::from(i32::MIN);
 
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(MAX_SECONDS + 1, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(-(MAX_SECONDS + 1), 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(0, MAX_MILLISECONDS + 1, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(0, 0, MAX_MICROSECONDS + 1)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(i64::MAX, 0, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(0, i64::MAX, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_seconds_parts(0, 0, i64::MAX)
-    );
-}
+    let cases = [
+        // Cf. TimeSpanTests.cs#L484-511 (`FromDays_Int_ShouldOverflow`)
+        TimeSpan::builder().days(MAX_DAYS + 1),
+        TimeSpan::builder().days(-(MAX_DAYS + 1)),
+        TimeSpan::builder().hours(MAX_HOURS + 1),
+        TimeSpan::builder().minutes(MAX_MINUTES + 1),
+        TimeSpan::builder().seconds(MAX_SECONDS + 1),
+        TimeSpan::builder().milliseconds(MAX_MILLISECONDS + 1),
+        TimeSpan::builder().microseconds(MAX_MICROSECONDS + 1),
+        TimeSpan::builder()
+            .days(i32_max)
+            .hours(i32_max)
+            .minutes(i64::MAX)
+            .seconds(i64::MAX)
+            .milliseconds(i64::MAX)
+            .microseconds(i64::MAX),
+        TimeSpan::builder()
+            .days(i32_min)
+            .hours(i32_min)
+            .minutes(i64::MIN)
+            .seconds(i64::MIN)
+            .milliseconds(i64::MIN)
+            .microseconds(i64::MIN),
+        // Cf. TimeSpanTests.cs#L570-591 (`FromHours_Int_ShouldOverflow`)
+        TimeSpan::builder().hours(MAX_HOURS + 1),
+        TimeSpan::builder().hours(-(MAX_HOURS + 1)),
+        TimeSpan::builder().minutes(MAX_MINUTES + 1),
+        TimeSpan::builder().seconds(MAX_SECONDS + 1),
+        TimeSpan::builder().milliseconds(MAX_MILLISECONDS + 1),
+        TimeSpan::builder().microseconds(MAX_MICROSECONDS + 1),
+        // Cf. TimeSpanTests.cs#L629-637 (`FromMinutes_Int_ShouldOverflow`)
+        TimeSpan::builder().minutes(MAX_MINUTES + 1),
+        TimeSpan::builder().minutes(-(MAX_MINUTES + 1)),
+        TimeSpan::builder().seconds(MAX_SECONDS + 1),
+        TimeSpan::builder().milliseconds(MAX_MILLISECONDS + 1),
+        TimeSpan::builder().microseconds(MAX_MICROSECONDS + 1),
+        TimeSpan::builder()
+            .minutes(i64::MAX)
+            .seconds(i64::MAX)
+            .milliseconds(i64::MAX)
+            .microseconds(i64::MAX),
+        TimeSpan::builder()
+            .minutes(i64::MIN)
+            .seconds(i64::MIN)
+            .milliseconds(i64::MIN)
+            .microseconds(i64::MIN),
+        // Cf. TimeSpanTests.cs#L682-696 (`FromSeconds_Int_ShouldOverflow`)
+        TimeSpan::builder().seconds(MAX_SECONDS + 1),
+        TimeSpan::builder().seconds(-(MAX_SECONDS + 1)),
+        TimeSpan::builder().milliseconds(MAX_MILLISECONDS + 1),
+        TimeSpan::builder().microseconds(MAX_MICROSECONDS + 1),
+        TimeSpan::builder().seconds(i64::MAX),
+        TimeSpan::builder().milliseconds(i64::MAX),
+        TimeSpan::builder().microseconds(i64::MAX),
+        // Cf. TimeSpanTests.cs#L727-747 (`FromMilliseconds_Int_ShouldOverflow`)
+        TimeSpan::builder().milliseconds(MAX_MILLISECONDS + 1),
+        TimeSpan::builder().milliseconds(-(MAX_MILLISECONDS + 1)),
+        TimeSpan::builder().microseconds(MAX_MICROSECONDS + 1),
+        TimeSpan::builder().microseconds(-(MAX_MICROSECONDS + 1)),
+        TimeSpan::builder().milliseconds(i64::MAX),
+        TimeSpan::builder().microseconds(i64::MAX),
+    ];
 
-/// Cf. TimeSpan.cs#L604-L610 (`FromMilliseconds` 2-arg overload). Also covers what
-/// #52/#54/#55 describe (`from_days_parts`/`from_minutes_parts`/`from_seconds_parts`)
-/// and, like them, follows the same `FromMicroseconds(Int128)`-delegating pattern as
-/// the other `_parts` factories above, so it's fixed alongside them here even though
-/// no issue named it individually.
-///
-/// Cf. TimeSpanTests.cs#L710-724 (`FromMilliseconds_Int_ShouldCreate`)
-#[test]
-fn from_milliseconds_parts_basic() {
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            TimeSpan::TICKS_PER_MILLISECOND + TimeSpan::TICKS_PER_MICROSECOND
-        )),
-        TimeSpan::from_milliseconds_parts(1, 1)
-    );
-    assert_eq!(
-        Ok(TimeSpan::from_ticks(
-            -(TimeSpan::TICKS_PER_MILLISECOND + TimeSpan::TICKS_PER_MICROSECOND)
-        )),
-        TimeSpan::from_milliseconds_parts(-1, -1)
-    );
-    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_milliseconds_parts(0, 0));
-}
-
-/// Cf. TimeSpanTests.cs#L727-747 (`FromMilliseconds_Int_ShouldOverflow`)
-#[test]
-fn from_milliseconds_parts_overflow() {
-    const MAX_MILLISECONDS: i64 = 922_337_203_685_477;
-    const MAX_MICROSECONDS: i64 = 922_337_203_685_477_580;
-
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_milliseconds_parts(MAX_MILLISECONDS + 1, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_milliseconds_parts(-(MAX_MILLISECONDS + 1), 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_milliseconds_parts(0, MAX_MICROSECONDS + 1)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_milliseconds_parts(0, -(MAX_MICROSECONDS + 1))
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_milliseconds_parts(i64::MAX, 0)
-    );
-    assert_eq!(
-        Err(TimeSpanError::Overflow),
-        TimeSpan::from_milliseconds_parts(0, i64::MAX)
-    );
+    for builder in cases {
+        assert_eq!(Err(TimeSpanError::Overflow), builder.build());
+    }
 }
