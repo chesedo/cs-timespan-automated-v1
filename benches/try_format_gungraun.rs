@@ -18,7 +18,14 @@ use gungraun::{Callgrind, EventKind, LibraryBenchmarkConfig};
 /// 1 day, 2 hours, 3 minutes, 4.5 seconds — exercises the day segment and, for "c"/"G",
 /// the fractional-seconds segment, in every case below.
 fn sample() -> TimeSpan {
-    TimeSpan::from_dhms_milli(1, 2, 3, 4, 500).unwrap()
+    TimeSpan::builder()
+        .days(1)
+        .hours(2)
+        .minutes(3)
+        .seconds(4)
+        .milliseconds(500)
+        .build()
+        .unwrap()
 }
 
 #[library_benchmark(config = LibraryBenchmarkConfig::default()
@@ -67,8 +74,8 @@ fn bench_to_string_format(format: &str) -> String {
 #[library_benchmark(config = LibraryBenchmarkConfig::default()
     .tool(Callgrind::default().soft_limits([(EventKind::Ir, 2.0)])))]
 #[bench::zero(TimeSpan::ZERO)]
-#[bench::no_days(TimeSpan::from_hms(2, 3, 4).unwrap())]
-#[bench::negative(-TimeSpan::from_dhms_milli(1, 2, 3, 4, 500).unwrap())]
+#[bench::no_days(TimeSpan::from_ticks(73_840_000_000))]
+#[bench::negative(-TimeSpan::from_ticks(937_845_000_000))]
 #[bench::min(TimeSpan::MIN)]
 #[bench::max(TimeSpan::MAX)]
 fn bench_try_format_by_value(ts: TimeSpan) -> usize {
@@ -79,8 +86,8 @@ fn bench_try_format_by_value(ts: TimeSpan) -> usize {
 #[library_benchmark(config = LibraryBenchmarkConfig::default()
     .tool(Callgrind::default().soft_limits([(EventKind::Ir, 5.0)])))]
 #[bench::zero(TimeSpan::ZERO)]
-#[bench::no_days(TimeSpan::from_hms(2, 3, 4).unwrap())]
-#[bench::negative(-TimeSpan::from_dhms_milli(1, 2, 3, 4, 500).unwrap())]
+#[bench::no_days(TimeSpan::from_ticks(73_840_000_000))]
+#[bench::negative(-TimeSpan::from_ticks(937_845_000_000))]
 #[bench::min(TimeSpan::MIN)]
 #[bench::max(TimeSpan::MAX)]
 fn bench_to_string_format_by_value(ts: TimeSpan) -> String {

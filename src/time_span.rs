@@ -442,7 +442,7 @@ impl TimeSpan {
     ///     .minutes(30)
     ///     .build()
     ///     .unwrap();
-    /// assert_eq!(ts, TimeSpan::from_dhms(1, 2, 30, 0).unwrap());
+    /// assert_eq!(ts, TimeSpan::from_ticks(954_000_000_000));
     /// ```
     #[must_use]
     pub fn builder() -> TimeSpanBuilder {
@@ -1091,7 +1091,7 @@ impl TimeSpan {
     /// ```
     /// use cs_timespan_automated_v1::TimeSpan;
     ///
-    /// let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
+    /// let ts = TimeSpan::builder().hours(1).minutes(2).seconds(3).build().unwrap();
     /// assert_eq!(ts.to_string_format("c").unwrap(), ts.to_string());
     /// assert_eq!(ts.to_string_format("g").unwrap(), "1:02:03");
     /// assert_eq!(ts.to_string_format("G").unwrap(), "0:01:02:03.0000000");
@@ -1279,10 +1279,28 @@ impl TimeSpan {
     ///
     /// let ts = TimeSpan::parse_exact("12.23:32:43", r"dd\.h\:m\:s", TimeSpanStyles::None)
     ///     .unwrap();
-    /// assert_eq!(ts, TimeSpan::from_dhms(12, 23, 32, 43).unwrap());
+    /// assert_eq!(
+    ///     ts,
+    ///     TimeSpan::builder()
+    ///         .days(12)
+    ///         .hours(23)
+    ///         .minutes(32)
+    ///         .seconds(43)
+    ///         .build()
+    ///         .unwrap()
+    /// );
     ///
     /// let ts = TimeSpan::parse_exact("1.12:24:02", "c", TimeSpanStyles::None).unwrap();
-    /// assert_eq!(ts, TimeSpan::from_dhms(1, 12, 24, 2).unwrap());
+    /// assert_eq!(
+    ///     ts,
+    ///     TimeSpan::builder()
+    ///         .days(1)
+    ///         .hours(12)
+    ///         .minutes(24)
+    ///         .seconds(2)
+    ///         .build()
+    ///         .unwrap()
+    /// );
     /// ```
     pub fn parse_exact(
         input: &str,
@@ -1347,7 +1365,7 @@ impl TimeSpan {
     ///     TimeSpanStyles::None,
     /// )
     /// .unwrap();
-    /// assert_eq!(ts, TimeSpan::from_hms(3, 0, 0).unwrap());
+    /// assert_eq!(ts, TimeSpan::builder().hours(3).build().unwrap());
     /// ```
     pub fn parse_exact_multiple(
         input: &str,
@@ -1426,7 +1444,7 @@ impl TimeSpan {
     /// ```
     /// use cs_timespan_automated_v1::TimeSpan;
     ///
-    /// let ts = TimeSpan::from_hms(1, 2, 3).unwrap();
+    /// let ts = TimeSpan::builder().hours(1).minutes(2).seconds(3).build().unwrap();
     /// let mut buf = [0u8; 32];
     /// let written = ts.try_format(&mut buf, "c").unwrap();
     /// assert_eq!(&buf[..written], b"01:02:03");

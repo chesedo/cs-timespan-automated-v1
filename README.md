@@ -16,9 +16,9 @@ Not published to crates.io; no released versions yet. The public API can still c
 use cs_timespan_automated_v1::{TimeSpan, TimeSpanStyles};
 
 // Construction
-let ts = TimeSpan::from_hms(1, 2, 3).unwrap(); // 1h 2m 3s
+let ts = TimeSpan::builder().hours(1).minutes(2).seconds(3).build().unwrap(); // 1h 2m 3s
 let day_and_a_half = TimeSpan::from_days(1.5).unwrap();
-assert_eq!(TimeSpan::from_ticks(36_000_000_000), TimeSpan::from_hms(1, 0, 0).unwrap());
+assert_eq!(TimeSpan::from_ticks(36_000_000_000), TimeSpan::builder().hours(1).build().unwrap());
 
 // Component and total accessors
 assert_eq!(ts.hours(), 1);
@@ -26,7 +26,7 @@ assert_eq!(ts.minutes(), 2);
 assert_eq!(day_and_a_half.total_hours(), 36.0);
 
 // Arithmetic (checked — returns Result rather than panicking on overflow)
-let sum = ts.checked_add(TimeSpan::from_hms(0, 30, 0).unwrap()).unwrap();
+let sum = ts.checked_add(TimeSpan::builder().minutes(30).build().unwrap()).unwrap();
 let doubled = ts.checked_mul(2.0).unwrap();
 
 // Parsing (invariant culture only)
