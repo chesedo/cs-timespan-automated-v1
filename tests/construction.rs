@@ -275,8 +275,14 @@ fn ctor_hms() {
 /// Cf. TimeSpanTests.cs#L53-L58 (`Ctor_Int_Int_Int_Invalid`)
 #[test]
 fn ctor_hms_invalid() {
-    assert!(TimeSpan::from_hms(TimeSpan::MIN.total_hours() as i32 - 1, 0, 0).is_err());
-    assert!(TimeSpan::from_hms(TimeSpan::MAX.total_hours() as i32 + 1, 0, 0).is_err());
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hms(TimeSpan::MIN.total_hours() as i32 - 1, 0, 0)
+    );
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
+        TimeSpan::from_hms(TimeSpan::MAX.total_hours() as i32 + 1, 0, 0)
+    );
 }
 
 /// Sanity coverage for the 4-arg constructor, which C# defines purely as a
@@ -299,7 +305,8 @@ fn ctor_dhms_milli() {
 #[test]
 fn ctor_dhms_milli_invalid() {
     let min = TimeSpan::MIN;
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             min.days() - 1,
             min.hours(),
@@ -307,9 +314,9 @@ fn ctor_dhms_milli_invalid() {
             min.seconds(),
             min.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             min.days(),
             min.hours() - 1,
@@ -317,9 +324,9 @@ fn ctor_dhms_milli_invalid() {
             min.seconds(),
             min.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             min.days(),
             min.hours(),
@@ -327,9 +334,9 @@ fn ctor_dhms_milli_invalid() {
             min.seconds(),
             min.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             min.days(),
             min.hours(),
@@ -337,9 +344,9 @@ fn ctor_dhms_milli_invalid() {
             min.seconds() - 1,
             min.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             min.days(),
             min.hours(),
@@ -347,11 +354,11 @@ fn ctor_dhms_milli_invalid() {
             min.seconds(),
             min.milliseconds() - 1
         )
-        .is_err()
     );
 
     let max = TimeSpan::MAX;
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             max.days() + 1,
             max.hours(),
@@ -359,9 +366,9 @@ fn ctor_dhms_milli_invalid() {
             max.seconds(),
             max.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             max.days(),
             max.hours() + 1,
@@ -369,9 +376,9 @@ fn ctor_dhms_milli_invalid() {
             max.seconds(),
             max.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             max.days(),
             max.hours(),
@@ -379,9 +386,9 @@ fn ctor_dhms_milli_invalid() {
             max.seconds(),
             max.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             max.days(),
             max.hours(),
@@ -389,9 +396,9 @@ fn ctor_dhms_milli_invalid() {
             max.seconds() + 1,
             max.milliseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_milli(
             max.days(),
             max.hours(),
@@ -399,7 +406,6 @@ fn ctor_dhms_milli_invalid() {
             max.seconds(),
             max.milliseconds() + 1
         )
-        .is_err()
     );
 }
 
@@ -414,7 +420,8 @@ fn ctor_dhms_micro() {
 #[test]
 fn ctor_dhms_micro_invalid() {
     let min = TimeSpan::MIN;
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             min.days() - 1,
             min.hours(),
@@ -423,9 +430,9 @@ fn ctor_dhms_micro_invalid() {
             min.milliseconds(),
             min.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             min.days(),
             min.hours() - 1,
@@ -434,9 +441,9 @@ fn ctor_dhms_micro_invalid() {
             min.milliseconds(),
             min.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             min.days(),
             min.hours(),
@@ -445,9 +452,9 @@ fn ctor_dhms_micro_invalid() {
             min.milliseconds(),
             min.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             min.days(),
             min.hours(),
@@ -456,9 +463,9 @@ fn ctor_dhms_micro_invalid() {
             min.milliseconds(),
             min.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             min.days(),
             min.hours(),
@@ -467,9 +474,9 @@ fn ctor_dhms_micro_invalid() {
             min.milliseconds() - 1,
             min.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             min.days(),
             min.hours(),
@@ -478,11 +485,11 @@ fn ctor_dhms_micro_invalid() {
             min.milliseconds(),
             min.microseconds() - 1
         )
-        .is_err()
     );
 
     let max = TimeSpan::MAX;
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             max.days() + 1,
             max.hours(),
@@ -491,9 +498,9 @@ fn ctor_dhms_micro_invalid() {
             max.milliseconds(),
             max.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             max.days(),
             max.hours() + 1,
@@ -502,9 +509,9 @@ fn ctor_dhms_micro_invalid() {
             max.milliseconds(),
             max.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             max.days(),
             max.hours(),
@@ -513,9 +520,9 @@ fn ctor_dhms_micro_invalid() {
             max.milliseconds(),
             max.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             max.days(),
             max.hours(),
@@ -524,9 +531,9 @@ fn ctor_dhms_micro_invalid() {
             max.milliseconds(),
             max.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             max.days(),
             max.hours(),
@@ -535,9 +542,9 @@ fn ctor_dhms_micro_invalid() {
             max.milliseconds() + 1,
             max.microseconds()
         )
-        .is_err()
     );
-    assert!(
+    assert_eq!(
+        Err(TimeSpanError::Overflow),
         TimeSpan::from_dhms_micro(
             max.days(),
             max.hours(),
@@ -546,7 +553,6 @@ fn ctor_dhms_micro_invalid() {
             max.milliseconds(),
             max.microseconds() + 1
         )
-        .is_err()
     );
 }
 
