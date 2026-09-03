@@ -539,7 +539,7 @@ fn dhms_builder_overflow() {
 /// Cf. TimeSpan.cs#L455, TimeSpanTests.cs#L507-L516 (`FromDays_Int_Single_ShouldCreate`)
 #[test]
 fn from_days_i32_basic() {
-    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_days_i32(0));
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_days_i32(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_DAY)),
         TimeSpan::from_days_i32(1)
@@ -591,7 +591,7 @@ fn from_days_i32_overflow() {
 /// (`FromHours_Int_Single_ShouldCreate`)
 #[test]
 fn from_hours_i32_basic() {
-    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_hours_i32(0));
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_hours_i32(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_HOUR)),
         TimeSpan::from_hours_i32(1)
@@ -643,7 +643,7 @@ fn from_hours_i32_overflow() {
 /// (`FromMinutes_Int_Single_ShouldCreate`)
 #[test]
 fn from_minutes_i64_basic() {
-    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_minutes_i64(0));
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_minutes_i64(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MINUTE)),
         TimeSpan::from_minutes_i64(1)
@@ -695,7 +695,7 @@ fn from_minutes_i64_overflow() {
 /// (`FromSeconds_Int_Single_ShouldCreate`)
 #[test]
 fn from_seconds_i64_basic() {
-    assert_eq!(TimeSpan::from_hms(0, 0, 0), TimeSpan::from_seconds_i64(0));
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_seconds_i64(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_SECOND)),
         TimeSpan::from_seconds_i64(1)
@@ -749,10 +749,7 @@ fn from_seconds_i64_overflow() {
 /// the `internal const MinMilliseconds`/`MaxMilliseconds` comment values instead.
 #[test]
 fn from_milliseconds_i64_basic() {
-    assert_eq!(
-        TimeSpan::from_hms(0, 0, 0),
-        TimeSpan::from_milliseconds_i64(0)
-    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_milliseconds_i64(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MILLISECOND)),
         TimeSpan::from_milliseconds_i64(1)
@@ -806,10 +803,7 @@ fn from_milliseconds_i64_overflow() {
 /// `internal const MinMicroseconds`/`MaxMicroseconds` comment values instead.
 #[test]
 fn from_microseconds_i64_basic() {
-    assert_eq!(
-        TimeSpan::from_hms(0, 0, 0),
-        TimeSpan::from_microseconds_i64(0)
-    );
+    assert_eq!(Ok(TimeSpan::ZERO), TimeSpan::from_microseconds_i64(0));
     assert_eq!(
         Ok(TimeSpan::from_ticks(TimeSpan::TICKS_PER_MICROSECOND)),
         TimeSpan::from_microseconds_i64(1)
