@@ -10,7 +10,7 @@
 //!
 //! Cf. issue #112.
 
-use cs_timespan_automated_v1::TimeSpan;
+use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
 use proptest::prelude::*;
 
 /// Generates a `TimeSpan` covering the full `i64` tick range, including the extremes
@@ -30,7 +30,7 @@ proptest! {
     #[test]
     fn checked_neg_involution(ts in any_time_span()) {
         if ts == TimeSpan::MIN {
-            prop_assert!(ts.checked_neg().is_err());
+            prop_assert_eq!(Err(TimeSpanError::Overflow), ts.checked_neg());
         } else {
             prop_assert_eq!(ts.checked_neg().and_then(|n| n.checked_neg()), Ok(ts));
         }
