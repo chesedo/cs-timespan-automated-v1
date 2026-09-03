@@ -192,57 +192,41 @@ fn parse_exact_valid() {
         (
             "12.23:32:43",
             r"dd\.h\:m\:s",
-            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+            TimeSpan::from_ticks(11_215_630_000_000),
         ),
         (
             "012.23:32:43.893",
             r"ddd\.h\:m\:s\.fff",
-            TimeSpan::from_dhms_milli(12, 23, 32, 43, 893).unwrap(),
+            TimeSpan::from_ticks(11_215_638_930_000),
         ),
         (
             "12.05:02:03",
             r"d\.hh\:mm\:ss",
-            TimeSpan::from_dhms(12, 5, 2, 3).unwrap(),
+            TimeSpan::from_ticks(10_549_230_000_000),
         ),
         (
             "12:34 minutes",
             r"mm\:ss\ \m\i\n\u\t\e\s",
-            TimeSpan::from_hms(0, 12, 34).unwrap(),
+            TimeSpan::from_ticks(7_540_000_000),
         ),
         (
             "12:34 minutes",
             r#"mm\:ss\ "minutes""#,
-            TimeSpan::from_hms(0, 12, 34).unwrap(),
+            TimeSpan::from_ticks(7_540_000_000),
         ),
         (
             "12:34 minutes",
             r"mm\:ss\ 'minutes'",
-            TimeSpan::from_hms(0, 12, 34).unwrap(),
+            TimeSpan::from_ticks(7_540_000_000),
         ),
-        (
-            "678",
-            "fff",
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
-        ),
-        (
-            "678",
-            "FFF",
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
-        ),
-        ("3", "%d", TimeSpan::from_dhms(3, 0, 0, 0).unwrap()),
-        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
-        ("3", "%m", TimeSpan::from_hms(0, 3, 0).unwrap()),
-        ("3", "%s", TimeSpan::from_hms(0, 0, 3).unwrap()),
-        (
-            "3",
-            "%f",
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 300).unwrap(),
-        ),
-        (
-            "3",
-            "%F",
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 300).unwrap(),
-        ),
+        ("678", "fff", TimeSpan::from_ticks(6_780_000)),
+        ("678", "FFF", TimeSpan::from_ticks(6_780_000)),
+        ("3", "%d", TimeSpan::from_ticks(2_592_000_000_000)),
+        ("3", "%h", TimeSpan::from_ticks(108_000_000_000)),
+        ("3", "%m", TimeSpan::from_ticks(1_800_000_000)),
+        ("3", "%s", TimeSpan::from_ticks(30_000_000)),
+        ("3", "%f", TimeSpan::from_ticks(3_000_000)),
+        ("3", "%F", TimeSpan::from_ticks(3_000_000)),
     ];
 
     for (input, format, expected) in cases {
@@ -264,14 +248,10 @@ fn parse_exact_assume_negative() {
         (
             "12.23:32:43",
             r"dd\.h\:m\:s",
-            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+            TimeSpan::from_ticks(11_215_630_000_000),
         ),
-        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
-        (
-            "678",
-            "fff",
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
-        ),
+        ("3", "%h", TimeSpan::from_ticks(108_000_000_000)),
+        ("678", "fff", TimeSpan::from_ticks(6_780_000)),
     ];
 
     for (input, format, expected) in cases {
@@ -356,12 +336,9 @@ fn parse_exact_invalid() {
 #[test]
 fn parse_exact_standard_constant_valid() {
     let cases: [(&str, TimeSpan); 3] = [
-        ("12:24:02", TimeSpan::from_hms(12, 24, 2).unwrap()),
-        ("1.12:24:02", TimeSpan::from_dhms(1, 12, 24, 2).unwrap()),
-        (
-            "-01.07:45:16.999",
-            -TimeSpan::from_dhms_milli(1, 7, 45, 16, 999).unwrap(),
-        ),
+        ("12:24:02", TimeSpan::from_ticks(446_420_000_000)),
+        ("1.12:24:02", TimeSpan::from_ticks(1_310_420_000_000)),
+        ("-01.07:45:16.999", -TimeSpan::from_ticks(1_143_169_990_000)),
     ];
 
     for format in ["c", "t", "T"] {
@@ -379,40 +356,19 @@ fn parse_exact_standard_constant_valid() {
 #[test]
 fn parse_exact_standard_g_valid() {
     let cases: [(&str, TimeSpan); 13] = [
-        ("12", TimeSpan::from_dhms(12, 0, 0, 0).unwrap()),
-        ("-12", -TimeSpan::from_dhms(12, 0, 0, 0).unwrap()),
-        ("12:34", TimeSpan::from_hms(12, 34, 0).unwrap()),
-        ("-12:34", -TimeSpan::from_hms(12, 34, 0).unwrap()),
-        (
-            "1:2:.3",
-            TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap(),
-        ),
-        (
-            "-1:2:.3",
-            -TimeSpan::from_dhms_milli(0, 1, 2, 0, 300).unwrap(),
-        ),
-        ("12:24:02", TimeSpan::from_hms(12, 24, 2).unwrap()),
-        (
-            "12:24:02.123",
-            TimeSpan::from_dhms_milli(0, 12, 24, 2, 123).unwrap(),
-        ),
-        (
-            "-12:24:02.123",
-            -TimeSpan::from_dhms_milli(0, 12, 24, 2, 123).unwrap(),
-        ),
-        (
-            "1:2:3:.4",
-            TimeSpan::from_dhms_milli(1, 2, 3, 0, 400).unwrap(),
-        ),
-        (
-            "-1:2:3:.4",
-            -TimeSpan::from_dhms_milli(1, 2, 3, 0, 400).unwrap(),
-        ),
-        ("1:12:24:02", TimeSpan::from_dhms(1, 12, 24, 2).unwrap()),
-        (
-            "-01:07:45:16.999",
-            -TimeSpan::from_dhms_milli(1, 7, 45, 16, 999).unwrap(),
-        ),
+        ("12", TimeSpan::from_ticks(10_368_000_000_000)),
+        ("-12", -TimeSpan::from_ticks(10_368_000_000_000)),
+        ("12:34", TimeSpan::from_ticks(452_400_000_000)),
+        ("-12:34", -TimeSpan::from_ticks(452_400_000_000)),
+        ("1:2:.3", TimeSpan::from_ticks(37_203_000_000)),
+        ("-1:2:.3", -TimeSpan::from_ticks(37_203_000_000)),
+        ("12:24:02", TimeSpan::from_ticks(446_420_000_000)),
+        ("12:24:02.123", TimeSpan::from_ticks(446_421_230_000)),
+        ("-12:24:02.123", -TimeSpan::from_ticks(446_421_230_000)),
+        ("1:2:3:.4", TimeSpan::from_ticks(937_804_000_000)),
+        ("-1:2:3:.4", -TimeSpan::from_ticks(937_804_000_000)),
+        ("1:12:24:02", TimeSpan::from_ticks(1_310_420_000_000)),
+        ("-01:07:45:16.999", -TimeSpan::from_ticks(1_143_169_990_000)),
     ];
 
     for (input, expected) in cases {
@@ -428,14 +384,8 @@ fn parse_exact_standard_g_valid() {
 #[test]
 fn parse_exact_standard_g_long_valid() {
     let cases: [(&str, TimeSpan); 2] = [
-        (
-            "1:12:24:02.243",
-            TimeSpan::from_dhms_milli(1, 12, 24, 2, 243).unwrap(),
-        ),
-        (
-            "-01:07:45:16.999",
-            -TimeSpan::from_dhms_milli(1, 7, 45, 16, 999).unwrap(),
-        ),
+        ("1:12:24:02.243", TimeSpan::from_ticks(1_310_422_430_000)),
+        ("-01:07:45:16.999", -TimeSpan::from_ticks(1_143_169_990_000)),
     ];
 
     for (input, expected) in cases {
@@ -458,14 +408,14 @@ fn parse_exact_standard_ignores_styles() {
     // "G" only accepts the full "d:h:m:s.f" shape, unlike the other four, so it needs its
     // own representative input rather than sharing "12:24:02" with the rest.
     let cases: [(&str, &str, TimeSpan); 5] = [
-        ("12:24:02", "c", TimeSpan::from_hms(12, 24, 2).unwrap()),
-        ("12:24:02", "t", TimeSpan::from_hms(12, 24, 2).unwrap()),
-        ("12:24:02", "T", TimeSpan::from_hms(12, 24, 2).unwrap()),
-        ("12:24:02", "g", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("12:24:02", "c", TimeSpan::from_ticks(446_420_000_000)),
+        ("12:24:02", "t", TimeSpan::from_ticks(446_420_000_000)),
+        ("12:24:02", "T", TimeSpan::from_ticks(446_420_000_000)),
+        ("12:24:02", "g", TimeSpan::from_ticks(446_420_000_000)),
         (
             "1:12:24:02.243",
             "G",
-            TimeSpan::from_dhms_milli(1, 12, 24, 2, 243).unwrap(),
+            TimeSpan::from_ticks(1_310_422_430_000),
         ),
     ];
 
@@ -521,20 +471,12 @@ fn parse_exact_multiple_single_format_matches_parse_exact() {
         (
             "12.23:32:43",
             r"dd\.h\:m\:s",
-            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+            TimeSpan::from_ticks(11_215_630_000_000),
         ),
-        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
-        (
-            "678",
-            "fff",
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 678).unwrap(),
-        ),
-        (
-            "1.12:24:02",
-            "c",
-            TimeSpan::from_dhms(1, 12, 24, 2).unwrap(),
-        ),
-        ("12:24:02", "g", TimeSpan::from_hms(12, 24, 2).unwrap()),
+        ("3", "%h", TimeSpan::from_ticks(108_000_000_000)),
+        ("678", "fff", TimeSpan::from_ticks(6_780_000)),
+        ("1.12:24:02", "c", TimeSpan::from_ticks(1_310_420_000_000)),
+        ("12:24:02", "g", TimeSpan::from_ticks(446_420_000_000)),
     ];
 
     for (input, format, expected) in cases {
@@ -555,9 +497,9 @@ fn parse_exact_multiple_assume_negative() {
         (
             "12.23:32:43",
             r"dd\.h\:m\:s",
-            TimeSpan::from_dhms(12, 23, 32, 43).unwrap(),
+            TimeSpan::from_ticks(11_215_630_000_000),
         ),
-        ("3", "%h", TimeSpan::from_hms(3, 0, 0).unwrap()),
+        ("3", "%h", TimeSpan::from_ticks(108_000_000_000)),
     ];
 
     for (input, format, expected) in cases {
@@ -578,7 +520,7 @@ fn parse_exact_multiple_assume_negative() {
 #[test]
 fn parse_exact_multiple_tries_formats_in_order() {
     assert_eq!(
-        Ok(TimeSpan::from_hms(3, 0, 0).unwrap()),
+        Ok(TimeSpan::from_ticks(108_000_000_000)),
         TimeSpan::parse_exact_multiple("3", &[r"hh\:mm\:ss", "%h"], TimeSpanStyles::None),
         "first format should fail to match, falling through to the second"
     );
@@ -591,11 +533,11 @@ fn parse_exact_multiple_tries_formats_in_order() {
 #[test]
 fn parse_exact_multiple_first_match_determines_interpretation() {
     assert_eq!(
-        Ok(TimeSpan::from_hms(3, 0, 0).unwrap()),
+        Ok(TimeSpan::from_ticks(108_000_000_000)),
         TimeSpan::parse_exact_multiple("3", &["%h", "%m"], TimeSpanStyles::None),
     );
     assert_eq!(
-        Ok(TimeSpan::from_hms(0, 3, 0).unwrap()),
+        Ok(TimeSpan::from_ticks(1_800_000_000)),
         TimeSpan::parse_exact_multiple("3", &["%m", "%h"], TimeSpanStyles::None),
     );
 }
