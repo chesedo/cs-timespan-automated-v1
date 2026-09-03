@@ -529,6 +529,21 @@ impl TimeSpan {
     /// round-half-away-from-zero (`2.5f64.round() == 3.0`) — `f64::round_ties_even`
     /// is the match.
     ///
+    /// Known, deliberate quirk (not a bug): `checked_neg()` and `checked_mul(-1.0)`
+    /// disagree at the `MIN`/`MAX` boundary — e.g. `TimeSpan::MAX.checked_neg()` is
+    /// `Ok(-9223372036854775807)` but `TimeSpan::MAX.checked_mul(-1.0)` is
+    /// `Ok(TimeSpan::MIN)`, and at `TimeSpan::MIN` they diverge even more sharply
+    /// (`Err(Overflow)` vs `Ok(TimeSpan::MAX)`). This isn't a Rust-port bug:
+    /// `Negate()`/unary `operator-` in upstream `TimeSpan.cs` does exact `long`
+    /// arithmetic (a `ticks == MinTicks` check, no floating point), while
+    /// `operator*(TimeSpan, double)` goes through `Math.Round` and
+    /// `IntervalFromDoubleTicks`, comparing against `MaxTicks`/`MinTicks` as
+    /// implicitly-converted `double`s — and `long.MaxValue as double` rounds up to
+    /// `2^63`, not representable exactly, which is where the divergence comes from.
+    /// Two genuinely different overflow-detection code paths in C#, faithfully
+    /// preserved here — don't "fix" `checked_mul` toward `checked_neg`'s exact-integer
+    /// boundary if a property test (re)discovers this.
+    ///
     /// # Errors
     ///
     /// Returns [`TimeSpanError::NotANumber`] if `factor` is NaN, or
