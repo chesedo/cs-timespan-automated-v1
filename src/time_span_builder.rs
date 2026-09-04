@@ -13,6 +13,12 @@
 
 use crate::{TimeSpan, TimeSpanError};
 
+/// Cf. TimeSpan.cs#L210-L211 (internal `MinMicroseconds`/`MaxMicroseconds`). Bounds for
+/// [`TimeSpanBuilder::build`]'s summed microsecond total; meaningful only in service of
+/// that range check, so kept local here rather than on [`TimeSpan`] itself.
+const MIN_MICROSECONDS: i64 = i64::MIN / TimeSpan::TICKS_PER_MICROSECOND;
+const MAX_MICROSECONDS: i64 = i64::MAX / TimeSpan::TICKS_PER_MICROSECOND;
+
 /// Fluent builder for [`TimeSpan`], covering the day/hour/minute/second/
 /// millisecond/microsecond component space, with `i64` fields throughout.
 ///
@@ -71,24 +77,37 @@ impl TimeSpanBuilder {
         self
     }
 
-    /// Sums all six components into a validated [`TimeSpan`], via the same
-    /// `i128`-widened-sum-then-range-check logic as the DHMS constructor family
-    /// (`TimeSpan::dhms_to_ticks`).
+    /// Sums all six components into a validated [`TimeSpan`]. Widens to `i128`
+    /// while summing so the addition itself can never overflow, matching
+    /// `ArgumentOutOfRangeException`'s out-of-range check.
     ///
     /// # Errors
     ///
     /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
     /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
     /// representable by `TimeSpan`.
+    ///
+    /// Cf. TimeSpan.cs#L292-L306 (6-arg constructor body)
     pub fn build(self) -> Result<TimeSpan, TimeSpanError> {
-        let ticks = TimeSpan::dhms_to_ticks(
-            self.days,
-            self.hours,
-            self.minutes,
-            self.seconds,
-            self.milliseconds,
-            self.microseconds,
-        )?;
+        let total_microseconds = i128::from(self.days) * i128::from(TimeSpan::MICROSECONDS_PER_DAY)
+            + i128::from(self.hours) * i128::from(TimeSpan::MICROSECONDS_PER_HOUR)
+            + i128::from(self.minutes) * i128::from(TimeSpan::MICROSECONDS_PER_MINUTE)
+            + i128::from(self.seconds) * i128::from(TimeSpan::MICROSECONDS_PER_SECOND)
+            + i128::from(self.milliseconds) * i128::from(TimeSpan::MICROSECONDS_PER_MILLISECOND)
+            + i128::from(self.microseconds);
+
+        if total_microseconds > i128::from(MAX_MICROSECONDS)
+            || total_microseconds < i128::from(MIN_MICROSECONDS)
+        {
+            return Err(TimeSpanError::Overflow);
+        }
+
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "total_microseconds is bounds-checked against MAX_MICROSECONDS/MIN_MICROSECONDS \
+                      (i64::MAX/MIN divided by TICKS_PER_MICROSECOND) above, so it fits in i64"
+        )]
+        let ticks = total_microseconds as i64 * TimeSpan::TICKS_PER_MICROSECOND;
         Ok(TimeSpan::from_ticks(ticks))
     }
 }
