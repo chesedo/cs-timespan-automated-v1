@@ -277,10 +277,6 @@ impl TimeSpan {
         total_nanoseconds
     }
 
-    // --- Everything below is unimplemented: real signatures, `todo!()` bodies. ---
-    // Each becomes its own scoped work-issue once drift-scan/work-issue starts
-    // iterating on this crate.
-
     /// Returns a fresh, all-zero [`TimeSpanBuilder`] — a fluent, Rust-idiomatic
     /// multi-component constructor unifying the day/hour/minute/second/millisecond/
     /// microsecond component space around `i64` fields.
