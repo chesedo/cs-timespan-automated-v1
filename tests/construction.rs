@@ -187,41 +187,6 @@ fn equals_via_operators() {
     assert_ne!(TimeSpan::from_ticks(10000), TimeSpan::from_ticks(20000));
 }
 
-/// Cf. TimeSpan.cs#L429 (`static Equals`): `public static bool Equals(TimeSpan t1,
-/// TimeSpan t2) => t1 == t2;` — a plain delegation onto the equality operator.
-#[test]
-fn static_equals() {
-    assert!(TimeSpan::equals(
-        TimeSpan::from_ticks(5),
-        TimeSpan::from_ticks(5)
-    ));
-    assert!(!TimeSpan::equals(
-        TimeSpan::from_ticks(5),
-        TimeSpan::from_ticks(6)
-    ));
-}
-
-/// Cf. TimeSpan.cs#L394 (`static Compare`): `public static int Compare(TimeSpan t1,
-/// TimeSpan t2) => t1._ticks.CompareTo(t2._ticks);` — a plain delegation onto the
-/// tick count's total order.
-#[test]
-fn static_compare() {
-    use std::cmp::Ordering;
-
-    assert_eq!(
-        Ordering::Less,
-        TimeSpan::compare(TimeSpan::from_ticks(1), TimeSpan::from_ticks(2))
-    );
-    assert_eq!(
-        Ordering::Equal,
-        TimeSpan::compare(TimeSpan::from_ticks(2), TimeSpan::from_ticks(2))
-    );
-    assert_eq!(
-        Ordering::Greater,
-        TimeSpan::compare(TimeSpan::from_ticks(3), TimeSpan::from_ticks(2))
-    );
-}
-
 /// Cf. TimeSpanTests.cs#L114-124 (`Ctor_Int_Int_Int_Int_Int_Int_WithNanosecond`).
 /// Builds the base instant via `TimeSpan::builder()`, then adds the extra ticks a
 /// nanosecond remainder would contribute, exactly as the C# test does.

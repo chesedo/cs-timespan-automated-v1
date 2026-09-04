@@ -29,7 +29,10 @@ use std::fmt;
 /// "must be `TimeSpan`" `ArgumentException` (Rust has no dynamically-typed `object`
 /// overload to port — `Ord`/`PartialOrd` replace it), and `TimeSpanStyles` validation
 /// (an out-of-range enum value is unrepresentable in Rust's type system in the first
-/// place).
+/// place). The same reasoning extends to the strongly-typed static `Compare(TimeSpan,
+/// TimeSpan)`/`Equals(TimeSpan, TimeSpan)` methods, which are likewise not ported:
+/// Rust's derived `Ord`/`PartialOrd`/`PartialEq` on [`crate::TimeSpan`] provide the
+/// same behavior directly via `.cmp()`, comparison operators, and `==`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeSpanError {
     /// The result falls outside the range representable by `TimeSpan`.
