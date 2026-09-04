@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::str::FromStr;
 
 use crate::error::TimeSpanError;
@@ -299,18 +298,6 @@ impl TimeSpan {
     #[must_use]
     pub fn builder() -> TimeSpanBuilder {
         TimeSpanBuilder::default()
-    }
-
-    /// Cf. TimeSpan.cs#L394 (`static Compare`)
-    #[must_use]
-    pub fn compare(t1: Self, t2: Self) -> Ordering {
-        t1.cmp(&t2)
-    }
-
-    /// Cf. TimeSpan.cs#L429 (`static Equals`)
-    #[must_use]
-    pub fn equals(t1: Self, t2: Self) -> bool {
-        t1 == t2
     }
 
     /// Performs real tick addition, only reporting [`TimeSpanError::Overflow`] when
