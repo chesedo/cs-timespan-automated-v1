@@ -445,21 +445,6 @@ impl TimeSpan {
         Self::interval_from_double_ticks(ticks)
     }
 
-    /// Infallible: mirrors C#'s floating-point `TimeSpan / TimeSpan`, which can
-    /// legitimately produce `f64::INFINITY`/`NAN` rather than erroring.
-    ///
-    /// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
-    #[must_use]
-    pub fn divide_time_span(self, rhs: Self) -> f64 {
-        #[allow(
-            clippy::cast_precision_loss,
-            reason = "matches C#'s `TimeSpan / TimeSpan` operator: `t1.Ticks / (double)t2.Ticks` \
-                      implicitly promotes both operands to double (TimeSpan.cs)"
-        )]
-        let result = self.ticks as f64 / rhs.ticks as f64;
-        result
-    }
-
     /// Validates `value` isn't NaN, then scales it into a tick count via
     /// [`Self::interval_from_double_ticks`]. Shared by all six `f64`-argument
     /// `from_*` factories below.
@@ -1460,12 +1445,21 @@ impl std::ops::Div<f64> for TimeSpan {
     }
 }
 
-/// Cf. TimeSpan.cs#L936-L941
+/// Infallible: mirrors C#'s floating-point `TimeSpan / TimeSpan`, which can
+/// legitimately produce `f64::INFINITY`/`NAN` rather than erroring.
+///
+/// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
 impl std::ops::Div<TimeSpan> for TimeSpan {
     type Output = f64;
 
     fn div(self, rhs: TimeSpan) -> Self::Output {
-        self.divide_time_span(rhs)
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "matches C#'s `TimeSpan / TimeSpan` operator: `t1.Ticks / (double)t2.Ticks` \
+                      implicitly promotes both operands to double (TimeSpan.cs)"
+        )]
+        let result = self.ticks as f64 / rhs.ticks as f64;
+        result
     }
 }
 
