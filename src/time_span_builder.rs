@@ -1,15 +1,12 @@
 //! Fluent, Rust-idiomatic multi-component constructor for [`TimeSpan`].
 //!
-//! This replaces an earlier DHMS constructor family (`TimeSpan::from_hms`/
-//! `from_dhms`/`from_dhms_milli`/`from_dhms_micro`) and `*_parts` factories
-//! (`from_days_parts`, `from_hours_parts`, ...), which ported C#'s multi-component
-//! `TimeSpan` constructor overloads and `FromX(int, int, ...)` static factory
-//! overloads faithfully, including their per-overload field-type inconsistency (the
-//! DHMS family was all `i32`; the `*_parts` family mixed `i32` days/hours with `i64`
-//! minutes/seconds/milliseconds/microseconds, mirroring C#'s own per-overload
-//! inconsistency). [`TimeSpanBuilder`] instead uses `i64` uniformly for every field —
-//! the widest type either family used per field, so nothing was lost by widening
-//! (`i32` values convert losslessly via `i64::from(...)`).
+//! Covers the same ground as C#'s multi-component `TimeSpan` constructor overloads
+//! and `FromX(int, int, ...)` static factory overloads — day/hour/minute/second/
+//! millisecond/microsecond components — as one builder instead of several
+//! fixed-arity overloads. Uses `i64` uniformly for every field rather than mirroring
+//! each C# overload's own per-parameter type (some are `int`, others `long`,
+//! depending on which overload); `i32`-sized values still convert losslessly via
+//! `i64::from(...)`, so nothing is lost by the wider, uniform type.
 
 use crate::{TimeSpan, TimeSpanError};
 
