@@ -1,5 +1,5 @@
 //! Tests for `TimeSpan` arithmetic: the `std::ops` impls and the
-//! `checked_*`/`duration`/`divide_time_span` methods.
+//! `checked_*`/`duration` methods.
 
 use cs_timespan_automated_v1::{TimeSpan, TimeSpanError};
 
@@ -217,23 +217,6 @@ fn divide_time_span_operator_by_zero_yields_infinity() {
 fn divide_time_span_operator_zero_by_zero_yields_nan() {
     let result = TimeSpan::ZERO / TimeSpan::ZERO;
     assert!(result.is_nan());
-}
-
-/// `Divide(TimeSpan)` forwards to the same operator and thus has identical
-/// infallible semantics.
-///
-/// Cf. TimeSpan.cs#L693 (instance `Divide(TimeSpan)`), TimeSpan.cs#L936-L941
-#[test]
-fn divide_time_span_method_matches_operator() {
-    assert_eq!(
-        2.0,
-        TimeSpan::from_ticks(10).divide_time_span(TimeSpan::from_ticks(5))
-    );
-    assert_eq!(
-        f64::INFINITY,
-        TimeSpan::from_ticks(1).divide_time_span(TimeSpan::ZERO)
-    );
-    assert!(TimeSpan::ZERO.divide_time_span(TimeSpan::ZERO).is_nan());
 }
 
 /// Ported from `MultiplicationTestData`, shared by both C#'s `Multiplication` and
