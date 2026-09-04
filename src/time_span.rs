@@ -188,12 +188,18 @@ impl TimeSpan {
         TimeSpan { ticks }
     }
 
+    /// Returns the total number of 100-nanosecond ticks that make up this span.
+    ///
     /// Cf. TimeSpan.cs#L308
     #[must_use]
     pub const fn ticks(&self) -> i64 {
         self.ticks
     }
 
+    /// Returns the whole-days component of this span's breakdown, discarding the
+    /// leftover hours/minutes/etc. that don't complete another day — not the entire
+    /// span expressed in days; see [`Self::total_days`] for that.
+    ///
     /// Cf. TimeSpan.cs#L310
     #[must_use]
     pub fn days(&self) -> i32 {
@@ -207,6 +213,11 @@ impl TimeSpan {
         days
     }
 
+    /// Returns the hours component of this span's breakdown — the 0..=23 remainder
+    /// left after whole days are subtracted out, not the entire span expressed in
+    /// hours (e.g. a 25-hour span returns `1` here but `25.0` from
+    /// [`Self::total_hours`]).
+    ///
     /// Cf. TimeSpan.cs#L312
     #[must_use]
     pub fn hours(&self) -> i32 {
@@ -218,30 +229,51 @@ impl TimeSpan {
         hours
     }
 
+    /// Returns the minutes component of this span's breakdown — the 0..=59 remainder
+    /// left after whole hours are subtracted out — not the entire span expressed in
+    /// minutes; see [`Self::total_minutes`] for that.
+    ///
     /// Cf. TimeSpan.cs#L334
     #[must_use]
     pub fn minutes(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_MINUTE % Self::MINUTES_PER_HOUR) as i32
     }
 
+    /// Returns the seconds component of this span's breakdown — the 0..=59 remainder
+    /// left after whole minutes are subtracted out — not the entire span expressed in
+    /// seconds; see [`Self::total_seconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L336
     #[must_use]
     pub fn seconds(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_SECOND % Self::SECONDS_PER_MINUTE) as i32
     }
 
+    /// Returns the milliseconds component of this span's breakdown — the 0..=999
+    /// remainder left after whole seconds are subtracted out — not the entire span
+    /// expressed in milliseconds; see [`Self::total_milliseconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L314
     #[must_use]
     pub fn milliseconds(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_MILLISECOND % Self::MILLISECONDS_PER_SECOND) as i32
     }
 
+    /// Returns the microseconds component of this span's breakdown — the 0..=999
+    /// remainder left after whole milliseconds are subtracted out — not the entire
+    /// span expressed in microseconds; see [`Self::total_microseconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L316-L323
     #[must_use]
     pub fn microseconds(&self) -> i32 {
         (self.ticks / Self::TICKS_PER_MICROSECOND % Self::MICROSECONDS_PER_MILLISECOND) as i32
     }
 
+    /// Returns the nanoseconds component of this span's breakdown — the remainder
+    /// left after whole microseconds are subtracted out, limited to multiples of 100
+    /// by the tick's own 100-nanosecond resolution — not the entire span expressed in
+    /// nanoseconds; see [`Self::total_nanoseconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L325-L332
     #[must_use]
     pub fn nanoseconds(&self) -> i32 {
@@ -255,6 +287,9 @@ impl TimeSpan {
         nanoseconds
     }
 
+    /// Returns this entire span expressed in days, as a fractional `f64` — not just
+    /// the whole-days component; see [`Self::days`] for that.
+    ///
     /// Cf. TimeSpan.cs#L338
     #[must_use]
     pub fn total_days(&self) -> f64 {
@@ -267,6 +302,9 @@ impl TimeSpan {
         total_days
     }
 
+    /// Returns this entire span expressed in hours, as a fractional `f64` — not just
+    /// the hours component; see [`Self::hours`] for that.
+    ///
     /// Cf. TimeSpan.cs#L340
     #[must_use]
     pub fn total_hours(&self) -> f64 {
@@ -279,6 +317,9 @@ impl TimeSpan {
         total_hours
     }
 
+    /// Returns this entire span expressed in minutes, as a fractional `f64` — not
+    /// just the minutes component; see [`Self::minutes`] for that.
+    ///
     /// Cf. TimeSpan.cs#L385
     #[must_use]
     pub fn total_minutes(&self) -> f64 {
@@ -291,6 +332,9 @@ impl TimeSpan {
         total_minutes
     }
 
+    /// Returns this entire span expressed in seconds, as a fractional `f64` — not
+    /// just the seconds component; see [`Self::seconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L387
     #[must_use]
     pub fn total_seconds(&self) -> f64 {
@@ -319,6 +363,9 @@ impl TimeSpan {
         value.clamp(Self::MIN_MILLISECONDS_F64, Self::MAX_MILLISECONDS_F64)
     }
 
+    /// Returns this entire span expressed in microseconds, as a fractional `f64` —
+    /// not just the microseconds component; see [`Self::microseconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L361-L371
     #[must_use]
     pub fn total_microseconds(&self) -> f64 {
@@ -331,6 +378,9 @@ impl TimeSpan {
         total_microseconds
     }
 
+    /// Returns this entire span expressed in nanoseconds, as a fractional `f64` —
+    /// not just the nanoseconds component; see [`Self::nanoseconds`] for that.
+    ///
     /// Cf. TimeSpan.cs#L373-L383
     #[must_use]
     pub fn total_nanoseconds(&self) -> f64 {
