@@ -38,9 +38,9 @@ still genuinely untested as of the current `tests/time_span.rs` content.
 ### `i128`-widening "changes overflow detection" findings for multi-term sums
 
 Findings claiming that widening a multi-term component sum to `i128` before
-range-checking (e.g. `dhms_to_ticks` backing `from_dhms`/`from_dhms_milli`/
-`from_dhms_micro`, or any similar helper that sums several `i32` components
-each scaled by a tick-unit constant) is a divergence from C#, because C#'s
+range-checking (e.g. `dhms_to_ticks`, backing `TimeSpanBuilder::build`, or any
+similar helper that sums several `i32`/`i64` components each scaled by a
+tick-unit constant) is a divergence from C#, because C#'s
 own sum is plain `long` arithmetic computed in an *unchecked* context and can
 itself overflow `long`/wrap silently for sufficiently extreme component
 magnitudes before its own range check runs.

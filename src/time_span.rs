@@ -93,50 +93,17 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L233
     pub const MIN: TimeSpan = TimeSpan { ticks: i64::MIN };
 
-    /// Cf. TimeSpan.cs#L216-L217 (internal `MinSeconds`/`MaxSeconds`)
-    const MIN_SECONDS: i64 = i64::MIN / Self::TICKS_PER_SECOND;
-    const MAX_SECONDS: i64 = i64::MAX / Self::TICKS_PER_SECOND;
-
     /// Cf. TimeSpan.cs#L210-L211 (internal `MinMicroseconds`/`MaxMicroseconds`)
     const MIN_MICROSECONDS: i64 = i64::MIN / Self::TICKS_PER_MICROSECOND;
     const MAX_MICROSECONDS: i64 = i64::MAX / Self::TICKS_PER_MICROSECOND;
 
-    /// Sums hours/minutes/seconds into a validated tick count. Widens to `i128`
-    /// while summing so the addition itself can never overflow (unlike the C#
-    /// source, whose comment notes `totalSeconds` is bounded well within 64 bits
-    /// for realistic inputs); the out-of-range check below is what actually
-    /// enforces the representable range, matching `ArgumentOutOfRangeException`.
-    ///
-    /// Cf. TimeSpan.cs#L698-L711 (internal `TimeToTicks`)
-    fn time_to_ticks(hours: i32, minutes: i32, seconds: i32) -> Result<i64, TimeSpanError> {
-        let total_seconds = i128::from(hours) * i128::from(Self::SECONDS_PER_HOUR)
-            + i128::from(minutes) * i128::from(Self::SECONDS_PER_MINUTE)
-            + i128::from(seconds);
-
-        if total_seconds > i128::from(Self::MAX_SECONDS)
-            || total_seconds < i128::from(Self::MIN_SECONDS)
-        {
-            return Err(TimeSpanError::Overflow);
-        }
-
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "total_seconds is bounds-checked against MAX_SECONDS/MIN_SECONDS (i64::MAX/MIN \
-                      divided by TICKS_PER_SECOND) above, so it fits in i64"
-        )]
-        let ticks = total_seconds as i64 * Self::TICKS_PER_SECOND;
-        Ok(ticks)
-    }
-
     /// Sums days/hours/minutes/seconds/milliseconds/microseconds into a
-    /// validated tick count. Same `i128` widening rationale as [`Self::time_to_ticks`].
+    /// validated tick count. Widens to `i128` while summing so the addition
+    /// itself can never overflow, matching `ArgumentOutOfRangeException`'s
+    /// out-of-range check.
     ///
-    /// Takes `i64` for all six components (rather than the `i32` the DHMS
-    /// constructor family below actually needs) so it can also serve as
-    /// [`TimeSpanBuilder::build`]'s widened-sum implementation, shared with the
-    /// single-value factories that delegate to the builder. `i128::from(i64)`
-    /// widens exactly like `i128::from(i32)` already did, so this is a
-    /// no-behavior-change widening for the existing `i32` callers.
+    /// Takes `i64` for all six components, matching [`TimeSpanBuilder`]'s fields —
+    /// this is [`TimeSpanBuilder::build`]'s widened-sum implementation.
     ///
     /// Cf. TimeSpan.cs#L292-L306 (6-arg constructor body)
     pub(crate) fn dhms_to_ticks(
@@ -357,81 +324,9 @@ impl TimeSpan {
     // Each becomes its own scoped work-issue once drift-scan/work-issue starts
     // iterating on this crate.
 
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `hours`/`minutes`/`seconds`
-    /// value falls outside the range representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L244-L247
-    pub fn from_hms(hours: i32, minutes: i32, seconds: i32) -> Result<Self, TimeSpanError> {
-        Ok(Self {
-            ticks: Self::time_to_ticks(hours, minutes, seconds)?,
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
-    /// `seconds` value falls outside the range representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L249-L252
-    pub fn from_dhms(
-        days: i32,
-        hours: i32,
-        minutes: i32,
-        seconds: i32,
-    ) -> Result<Self, TimeSpanError> {
-        Self::from_dhms_milli(days, hours, minutes, seconds, 0)
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
-    /// `seconds`/`milliseconds` value falls outside the range representable by
-    /// `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L254-L273
-    pub fn from_dhms_milli(
-        days: i32,
-        hours: i32,
-        minutes: i32,
-        seconds: i32,
-        milliseconds: i32,
-    ) -> Result<Self, TimeSpanError> {
-        Self::from_dhms_micro(days, hours, minutes, seconds, milliseconds, 0)
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
-    /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
-    /// representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L275-L306
-    pub fn from_dhms_micro(
-        days: i32,
-        hours: i32,
-        minutes: i32,
-        seconds: i32,
-        milliseconds: i32,
-        microseconds: i32,
-    ) -> Result<Self, TimeSpanError> {
-        Ok(Self {
-            ticks: Self::dhms_to_ticks(
-                i64::from(days),
-                i64::from(hours),
-                i64::from(minutes),
-                i64::from(seconds),
-                i64::from(milliseconds),
-                i64::from(microseconds),
-            )?,
-        })
-    }
-
     /// Returns a fresh, all-zero [`TimeSpanBuilder`] — a fluent, Rust-idiomatic
-    /// alternative to the [`Self::from_hms`]/[`Self::from_dhms`]/
-    /// [`Self::from_dhms_milli`]/[`Self::from_dhms_micro`] constructor family and the
-    /// `*_parts` factories, unifying both around `i64` fields.
+    /// multi-component constructor unifying the day/hour/minute/second/millisecond/
+    /// microsecond component space around `i64` fields.
     ///
     /// ```
     /// use cs_timespan_automated_v1::TimeSpan;
@@ -700,8 +595,7 @@ impl TimeSpan {
 
     /// Single-argument integer overload, bounds-checked against the whole-day
     /// range — distinct from [`Self::from_days`]'s `f64`/`Interval`-based
-    /// overload and [`Self::from_days_parts`]'s multi-component constructor.
-    /// Named `_i32` (rather than reusing `from_days`) because Rust doesn't
+    /// overload. Named `_i32` (rather than reusing `from_days`) because Rust doesn't
     /// support overloading by parameter type, unlike C#'s `FromDays(int)`/
     /// `FromDays(double)` pair.
     ///
@@ -717,56 +611,6 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L455
     pub fn from_days_i32(days: i32) -> Result<Self, TimeSpanError> {
         Self::builder().days(i64::from(days)).build()
-    }
-
-    /// Bounds-checks a microsecond count already widened to `i128` and converts it
-    /// to ticks. Mirrors C#'s private `FromMicroseconds(Int128)` helper, shared by
-    /// all five multi-component `_parts` factories below (each of which widens its
-    /// own component sum to `i128` first, mirroring `Math.BigMul`/`Int128` in C#,
-    /// so the addition itself can never overflow — same rationale as
-    /// [`Self::dhms_to_ticks`]/[`Self::time_to_ticks`]).
-    ///
-    /// Cf. TimeSpan.cs#L613-L620 (private `FromMicroseconds(Int128)`)
-    fn from_microseconds_i128(total_microseconds: i128) -> Result<Self, TimeSpanError> {
-        if total_microseconds > i128::from(Self::MAX_MICROSECONDS)
-            || total_microseconds < i128::from(Self::MIN_MICROSECONDS)
-        {
-            return Err(TimeSpanError::Overflow);
-        }
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "total_microseconds is bounds-checked against MAX_MICROSECONDS/MIN_MICROSECONDS \
-                      (i64::MAX/MIN divided by TICKS_PER_MICROSECOND) above, so it fits in i64"
-        )]
-        let ticks = total_microseconds as i64 * Self::TICKS_PER_MICROSECOND;
-        Ok(TimeSpan { ticks })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `days`/`hours`/`minutes`/
-    /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
-    /// representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L471-L481. The C# overload takes optional trailing
-    /// parameters (`hours = 0, minutes = 0, ...`); Rust has no default arguments,
-    /// so all components are required here.
-    pub fn from_days_parts(
-        days: i32,
-        hours: i32,
-        minutes: i64,
-        seconds: i64,
-        milliseconds: i64,
-        microseconds: i64,
-    ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = i128::from(days) * i128::from(Self::MICROSECONDS_PER_DAY)
-            + i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
-            + i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
-            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
-            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
-            + i128::from(microseconds);
-
-        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// # Errors
@@ -788,7 +632,7 @@ impl TimeSpan {
 
     /// Single-argument integer overload, bounds-checked against the whole-hour
     /// range — distinct from [`Self::from_hours`]'s `f64`/`Interval`-based
-    /// overload and [`Self::from_hours_parts`]'s multi-component constructor.
+    /// overload.
     ///
     /// Delegates to [`Self::builder`]: empirically verified (at `MAX_HOURS`,
     /// `MAX_HOURS + 1`, `MIN_HOURS`, `MIN_HOURS - 1`, and interior values) to
@@ -802,29 +646,6 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L492
     pub fn from_hours_i32(hours: i32) -> Result<Self, TimeSpanError> {
         Self::builder().hours(i64::from(hours)).build()
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `hours`/`minutes`/
-    /// `seconds`/`milliseconds`/`microseconds` value falls outside the range
-    /// representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L507-L516
-    pub fn from_hours_parts(
-        hours: i32,
-        minutes: i64,
-        seconds: i64,
-        milliseconds: i64,
-        microseconds: i64,
-    ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
-            + i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
-            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
-            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
-            + i128::from(microseconds);
-
-        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// # Errors
@@ -846,8 +667,7 @@ impl TimeSpan {
 
     /// Single-argument integer overload, bounds-checked against the
     /// whole-minute range — distinct from [`Self::from_minutes`]'s
-    /// `f64`/`Interval`-based overload and [`Self::from_minutes_parts`]'s
-    /// multi-component constructor. Takes `i64` (rather than `i32`) matching
+    /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromMinutes(long)`.
     ///
     /// Delegates to [`Self::builder`]: empirically verified (at `MAX_MINUTES`,
@@ -863,27 +683,6 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L527
     pub fn from_minutes_i64(minutes: i64) -> Result<Self, TimeSpanError> {
         Self::builder().minutes(minutes).build()
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `minutes`/`seconds`/
-    /// `milliseconds`/`microseconds` value falls outside the range representable by
-    /// `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L541-L549
-    pub fn from_minutes_parts(
-        minutes: i64,
-        seconds: i64,
-        milliseconds: i64,
-        microseconds: i64,
-    ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
-            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
-            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
-            + i128::from(microseconds);
-
-        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// # Errors
@@ -905,8 +704,7 @@ impl TimeSpan {
 
     /// Single-argument integer overload, bounds-checked against the
     /// whole-second range — distinct from [`Self::from_seconds`]'s
-    /// `f64`/`Interval`-based overload and [`Self::from_seconds_parts`]'s
-    /// multi-component constructor. Takes `i64` (rather than `i32`) matching
+    /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromSeconds(long)`.
     ///
     /// Delegates to [`Self::builder`]: empirically verified (at `MAX_SECONDS`,
@@ -922,24 +720,6 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L560
     pub fn from_seconds_i64(seconds: i64) -> Result<Self, TimeSpanError> {
         Self::builder().seconds(seconds).build()
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `seconds`/`milliseconds`/
-    /// `microseconds` value falls outside the range representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L573-L580
-    pub fn from_seconds_parts(
-        seconds: i64,
-        milliseconds: i64,
-        microseconds: i64,
-    ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
-            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
-            + i128::from(microseconds);
-
-        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// # Errors
@@ -962,8 +742,7 @@ impl TimeSpan {
 
     /// Single-argument integer overload, bounds-checked against the
     /// whole-millisecond range — distinct from [`Self::from_milliseconds`]'s
-    /// `f64`/`Interval`-based overload and [`Self::from_milliseconds_parts`]'s
-    /// multi-component constructor. Takes `i64` (rather than `i32`) matching
+    /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromMilliseconds(long)`.
     ///
     /// Delegates to [`Self::builder`]: empirically verified (at
@@ -979,23 +758,6 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L591-L592
     pub fn from_milliseconds_i64(milliseconds: i64) -> Result<Self, TimeSpanError> {
         Self::builder().milliseconds(milliseconds).build()
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TimeSpanError::Overflow`] if the combined `milliseconds`/
-    /// `microseconds` value falls outside the range representable by `TimeSpan`.
-    ///
-    /// Cf. TimeSpan.cs#L604-L610
-    pub fn from_milliseconds_parts(
-        milliseconds: i64,
-        microseconds: i64,
-    ) -> Result<Self, TimeSpanError> {
-        let total_microseconds = i128::from(milliseconds)
-            * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
-            + i128::from(microseconds);
-
-        Self::from_microseconds_i128(total_microseconds)
     }
 
     /// # Errors
@@ -1018,10 +780,8 @@ impl TimeSpan {
 
     /// Single-argument integer overload, bounds-checked against the
     /// whole-microsecond range — distinct from [`Self::from_microseconds`]'s
-    /// `f64`/`Interval`-based overload and the multi-component `_parts`
-    /// constructors (which go through [`Self::from_microseconds_i128`]
-    /// instead). Takes `i64` (rather than `i32`) matching C#'s
-    /// `FromMicroseconds(long)`.
+    /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
+    /// C#'s `FromMicroseconds(long)`.
     ///
     /// Delegates to [`Self::builder`]: empirically verified (at
     /// `MAX_MICROSECONDS`, `MAX_MICROSECONDS + 1`, `MIN_MICROSECONDS`,
