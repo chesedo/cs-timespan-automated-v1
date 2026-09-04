@@ -94,14 +94,13 @@ fn ctor_long() {
 }
 
 /// Cf. TimeSpanTests.cs#L126-145 (`Total_Days_Hours_Minutes_Seconds_Milliseconds`).
-/// Each case is built via the real multi-component constructor
-/// (`TimeSpan::from_dhms_milli`), matching the C# test's own use of its
-/// multi-component constructor.
+/// Each case is built via [`TimeSpan::builder`], matching the C# test's own use of
+/// its multi-component constructor.
 #[test]
 fn total_days_hours_minutes_seconds_milliseconds() {
     let cases: [(i64, f64, f64, f64, f64, f64); 5] = [
         (
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 0).unwrap().ticks(),
+            TimeSpan::builder().build().unwrap().ticks(),
             0.0,
             0.0,
             0.0,
@@ -109,7 +108,11 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             0.0,
         ),
         (
-            TimeSpan::from_dhms_milli(0, 0, 0, 0, 500).unwrap().ticks(),
+            TimeSpan::builder()
+                .milliseconds(500)
+                .build()
+                .unwrap()
+                .ticks(),
             0.5 / 60.0 / 60.0 / 24.0,
             0.5 / 60.0 / 60.0,
             0.5 / 60.0,
@@ -117,7 +120,7 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             500.0,
         ),
         (
-            TimeSpan::from_dhms_milli(0, 1, 0, 0, 0).unwrap().ticks(),
+            TimeSpan::builder().hours(1).build().unwrap().ticks(),
             1.0 / 24.0,
             1.0,
             60.0,
@@ -125,7 +128,7 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             3_600_000.0,
         ),
         (
-            TimeSpan::from_dhms_milli(1, 0, 0, 0, 0).unwrap().ticks(),
+            TimeSpan::builder().days(1).build().unwrap().ticks(),
             1.0,
             24.0,
             1440.0,
@@ -133,7 +136,12 @@ fn total_days_hours_minutes_seconds_milliseconds() {
             86_400_000.0,
         ),
         (
-            TimeSpan::from_dhms_milli(1, 1, 0, 0, 0).unwrap().ticks(),
+            TimeSpan::builder()
+                .days(1)
+                .hours(1)
+                .build()
+                .unwrap()
+                .ticks(),
             25.0 / 24.0,
             25.0,
             1500.0,

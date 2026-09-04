@@ -1,23 +1,20 @@
-//! Fluent, Rust-idiomatic alternative to the DHMS constructor family
-//! (`TimeSpan::from_hms`/`from_dhms`/`from_dhms_milli`/`from_dhms_micro`) and the
-//! `*_parts` factories (`from_days_parts`, `from_hours_parts`, ...).
+//! Fluent, Rust-idiomatic multi-component constructor for [`TimeSpan`].
 //!
-//! Both existing families port C#'s multi-component `TimeSpan` constructor overloads
-//! and `FromX(int, int, ...)` static factory overloads faithfully, including their
-//! per-overload field-type inconsistency (the DHMS family is all `i32`; the `*_parts`
-//! family mixes `i32` days/hours with `i64` minutes/seconds/milliseconds/microseconds,
-//! mirroring C#'s own per-overload inconsistency). [`TimeSpanBuilder`] instead uses
-//! `i64` uniformly for every field — the widest type either family uses per field, so
-//! nothing is lost by widening (`i32` values convert losslessly via `i64::from(...)`).
-//!
-//! This is purely additive: it does not replace or remove any of the 9 existing
-//! constructor/factory functions.
+//! This replaces an earlier DHMS constructor family (`TimeSpan::from_hms`/
+//! `from_dhms`/`from_dhms_milli`/`from_dhms_micro`) and `*_parts` factories
+//! (`from_days_parts`, `from_hours_parts`, ...), which ported C#'s multi-component
+//! `TimeSpan` constructor overloads and `FromX(int, int, ...)` static factory
+//! overloads faithfully, including their per-overload field-type inconsistency (the
+//! DHMS family was all `i32`; the `*_parts` family mixed `i32` days/hours with `i64`
+//! minutes/seconds/milliseconds/microseconds, mirroring C#'s own per-overload
+//! inconsistency). [`TimeSpanBuilder`] instead uses `i64` uniformly for every field —
+//! the widest type either family used per field, so nothing was lost by widening
+//! (`i32` values convert losslessly via `i64::from(...)`).
 
 use crate::{TimeSpan, TimeSpanError};
 
-/// Fluent builder for [`TimeSpan`], covering the same day/hour/minute/second/
-/// millisecond/microsecond component space as the DHMS constructor family and the
-/// `*_parts` factories, with `i64` fields throughout.
+/// Fluent builder for [`TimeSpan`], covering the day/hour/minute/second/
+/// millisecond/microsecond component space, with `i64` fields throughout.
 ///
 /// Construct one via [`TimeSpan::builder`]; every field defaults to `0`, so
 /// `TimeSpan::builder().build()` yields [`TimeSpan::ZERO`].
