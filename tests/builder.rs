@@ -69,7 +69,7 @@ fn negative_components() {
 }
 
 /// A combined value overflowing the representable tick range is reported as
-/// `TimeSpanError::Overflow`, matching `dhms_to_ticks`/the `_parts` family.
+/// `TimeSpanError::Overflow`, matching `TimeSpanBuilder::build`/the former `_parts` family.
 #[test]
 fn overflow_detection() {
     assert_eq!(

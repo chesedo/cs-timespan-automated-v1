@@ -1375,7 +1375,7 @@ fn parts_builder_seconds_precision() {
 /// a result close to zero rather than erroring, verifying the sum is widened to a
 /// wide-enough integer type before the range check — matching C#'s `Int128`-
 /// accumulated `totalMicroseconds` (`Math.BigMul` per term). `TimeSpanBuilder::build`
-/// uses the same widen-then-check logic (`TimeSpan::dhms_to_ticks`).
+/// uses this widen-then-check logic directly.
 ///
 /// Cf. TimeSpanTests.cs#L455-476
 /// (`FromDays_Int_ShouldNotOverflow_WhenOverflowingParamIsCounteredByOppositeSignParam`)

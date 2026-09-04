@@ -93,49 +93,6 @@ impl TimeSpan {
     /// Cf. TimeSpan.cs#L233
     pub const MIN: TimeSpan = TimeSpan { ticks: i64::MIN };
 
-    /// Cf. TimeSpan.cs#L210-L211 (internal `MinMicroseconds`/`MaxMicroseconds`)
-    const MIN_MICROSECONDS: i64 = i64::MIN / Self::TICKS_PER_MICROSECOND;
-    const MAX_MICROSECONDS: i64 = i64::MAX / Self::TICKS_PER_MICROSECOND;
-
-    /// Sums days/hours/minutes/seconds/milliseconds/microseconds into a
-    /// validated tick count. Widens to `i128` while summing so the addition
-    /// itself can never overflow, matching `ArgumentOutOfRangeException`'s
-    /// out-of-range check.
-    ///
-    /// Takes `i64` for all six components, matching [`TimeSpanBuilder`]'s fields —
-    /// this is [`TimeSpanBuilder::build`]'s widened-sum implementation.
-    ///
-    /// Cf. TimeSpan.cs#L292-L306 (6-arg constructor body)
-    pub(crate) fn dhms_to_ticks(
-        days: i64,
-        hours: i64,
-        minutes: i64,
-        seconds: i64,
-        milliseconds: i64,
-        microseconds: i64,
-    ) -> Result<i64, TimeSpanError> {
-        let total_microseconds = i128::from(days) * i128::from(Self::MICROSECONDS_PER_DAY)
-            + i128::from(hours) * i128::from(Self::MICROSECONDS_PER_HOUR)
-            + i128::from(minutes) * i128::from(Self::MICROSECONDS_PER_MINUTE)
-            + i128::from(seconds) * i128::from(Self::MICROSECONDS_PER_SECOND)
-            + i128::from(milliseconds) * i128::from(Self::MICROSECONDS_PER_MILLISECOND)
-            + i128::from(microseconds);
-
-        if total_microseconds > i128::from(Self::MAX_MICROSECONDS)
-            || total_microseconds < i128::from(Self::MIN_MICROSECONDS)
-        {
-            return Err(TimeSpanError::Overflow);
-        }
-
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "total_microseconds is bounds-checked against MAX_MICROSECONDS/MIN_MICROSECONDS \
-                      (i64::MAX/MIN divided by TICKS_PER_MICROSECOND) above, so it fits in i64"
-        )]
-        let ticks = total_microseconds as i64 * Self::TICKS_PER_MICROSECOND;
-        Ok(ticks)
-    }
-
     /// Constructs a `TimeSpan` directly from a tick count.
     ///
     /// Also covers the C# static factory `FromTicks(long)`, which is defined as an
