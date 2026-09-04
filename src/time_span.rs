@@ -524,10 +524,7 @@ impl TimeSpan {
     /// support overloading by parameter type, unlike C#'s `FromDays(int)`/
     /// `FromDays(double)` pair.
     ///
-    /// Delegates to [`Self::builder`]: empirically verified (at the representable
-    /// whole-day range's upper and lower bounds, one past each of those bounds, and
-    /// interior values) to agree exactly with the direct bounds-check this used before
-    /// delegating.
+    /// Delegates to [`Self::builder`].
     ///
     /// # Errors
     ///
@@ -560,10 +557,7 @@ impl TimeSpan {
     /// range — distinct from [`Self::from_hours`]'s `f64`/`Interval`-based
     /// overload.
     ///
-    /// Delegates to [`Self::builder`]: empirically verified (at the representable
-    /// whole-hour range's upper and lower bounds, one past each of those bounds, and
-    /// interior values) to agree exactly with the direct bounds-check this used before
-    /// delegating.
+    /// Delegates to [`Self::builder`].
     ///
     /// # Errors
     ///
@@ -597,10 +591,7 @@ impl TimeSpan {
     /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromMinutes(long)`.
     ///
-    /// Delegates to [`Self::builder`]: empirically verified (at the representable
-    /// whole-minute range's upper and lower bounds, one past each of those bounds, and
-    /// interior values) to agree exactly with the direct bounds-check this used before
-    /// delegating.
+    /// Delegates to [`Self::builder`].
     ///
     /// # Errors
     ///
@@ -634,10 +625,7 @@ impl TimeSpan {
     /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromSeconds(long)`.
     ///
-    /// Delegates to [`Self::builder`]: empirically verified (at the representable
-    /// whole-second range's upper and lower bounds, one past each of those bounds, and
-    /// interior values) to agree exactly with the direct bounds-check this used before
-    /// delegating.
+    /// Delegates to [`Self::builder`].
     ///
     /// # Errors
     ///
@@ -672,10 +660,7 @@ impl TimeSpan {
     /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromMilliseconds(long)`.
     ///
-    /// Delegates to [`Self::builder`]: empirically verified (at the representable
-    /// whole-millisecond range's upper and lower bounds, one past each of those bounds,
-    /// and interior values) to agree exactly with the direct bounds-check this used
-    /// before delegating.
+    /// Delegates to [`Self::builder`].
     ///
     /// # Errors
     ///
@@ -710,10 +695,7 @@ impl TimeSpan {
     /// `f64`/`Interval`-based overload. Takes `i64` (rather than `i32`) matching
     /// C#'s `FromMicroseconds(long)`.
     ///
-    /// Delegates to [`Self::builder`]: empirically verified (at the representable
-    /// whole-microsecond range's upper and lower bounds, one past each of those bounds,
-    /// and interior values) to agree exactly with the direct bounds-check this used
-    /// before delegating.
+    /// Delegates to [`Self::builder`].
     ///
     /// # Errors
     ///
