@@ -890,12 +890,7 @@ impl TimeSpan {
             let _ = write!(out, "{days}:");
         }
 
-        if hours < 10 {
-            out.push_str(&hours.to_string());
-        } else {
-            let _ = write!(out, "{hours:02}");
-        }
-        let _ = write!(out, ":{minutes:02}:{seconds:02}");
+        let _ = write!(out, "{hours}:{minutes:02}:{seconds:02}");
 
         if fraction != 0 {
             let (value, digits) = Self::trim_fraction_trailing_zeros(fraction);
