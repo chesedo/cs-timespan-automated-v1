@@ -78,7 +78,7 @@ fn parse_quote_string(format: &[char], pos: usize) -> Result<(String, usize), Ti
     let begin_pos = pos;
     let quote_char = format[pos];
     let mut i = pos + 1;
-    let mut result = String::new();
+    let mut result = String::with_capacity(format_len - pos);
     let mut found_quote = false;
 
     while i < format_len {
@@ -142,7 +142,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
     let seconds = time / TimeSpan::TICKS_PER_SECOND % 60;
     let fraction = time % TimeSpan::TICKS_PER_SECOND;
 
-    let mut result = String::new();
+    let mut result = String::with_capacity(format_chars.len());
     let mut i = 0usize;
 
     while i < format_chars.len() {
