@@ -862,11 +862,7 @@ impl TimeSpan {
         use std::fmt::Write;
 
         let negative = self.ticks < 0;
-        let abs_ticks: i128 = if negative {
-            -i128::from(self.ticks)
-        } else {
-            i128::from(self.ticks)
-        };
+        let abs_ticks: i128 = self.abs_ticks_i128();
 
         let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
         let fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
@@ -902,6 +898,15 @@ impl TimeSpan {
         }
 
         out
+    }
+
+    /// Ticks widened to `i128` and made non-negative. `i128` is wide enough that this
+    /// never overflows — `i128::MIN`'s magnitude vastly exceeds any representable `i64`,
+    /// unlike a plain `i64::abs()`, which would panic on `TimeSpan::MIN`'s ticks. Shared
+    /// by [`Self::format_general`], [`Self::try_format_standard`], and the
+    /// [`Display`](std::fmt::Display) impl, which each compute this identically.
+    fn abs_ticks_i128(self) -> i128 {
+        i128::from(self.ticks).abs()
     }
 
     /// Extracts the sub-second tick-fraction component from a non-negative tick
@@ -1243,11 +1248,7 @@ impl TimeSpan {
         destination: &mut [u8],
     ) -> Result<usize, TimeSpanError> {
         let negative = self.ticks < 0;
-        let abs_ticks: i128 = if negative {
-            -i128::from(self.ticks)
-        } else {
-            i128::from(self.ticks)
-        };
+        let abs_ticks: i128 = self.abs_ticks_i128();
 
         let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
         let mut fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
@@ -1565,11 +1566,7 @@ impl FromStr for TimeSpan {
 impl std::fmt::Display for TimeSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let negative = self.ticks < 0;
-        let abs_ticks: i128 = if negative {
-            -i128::from(self.ticks)
-        } else {
-            i128::from(self.ticks)
-        };
+        let abs_ticks: i128 = self.abs_ticks_i128();
 
         let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
         let fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
