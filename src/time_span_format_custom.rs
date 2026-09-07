@@ -51,11 +51,7 @@ fn pow10_up_to_max_fraction_digits(pow: u32) -> i64 {
 ///
 /// Cf. DateTimeFormat.ParseRepeatPattern (DateTimeFormat.cs#L197-205)
 fn count_repeats(chars: &mut Peekable<Chars>, pattern_char: char) -> usize {
-    let mut count = 0;
-    while chars.next_if_eq(&pattern_char).is_some() {
-        count += 1;
-    }
-    count
+    std::iter::from_fn(|| chars.next_if_eq(&pattern_char)).count()
 }
 
 /// Writes `value` (always non-negative, matching `FormatDigits`'s own precondition) zero-
