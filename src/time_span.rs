@@ -842,25 +842,20 @@ impl TimeSpan {
             // Empty string and "c"/"t"/"T" are all the same constant format — see this
             // function's doc comment above.
             (None | Some('c' | 't' | 'T'), None) => Ok(self.to_string()),
-            (Some('g'), None) => Ok(self.format_general(false)),
-            (Some('G'), None) => Ok(self.format_general(true)),
+            (Some('g'), None) => Ok(self.format_general_short()),
+            (Some('G'), None) => Ok(self.format_general_long()),
             (Some(_), None) => Err(TimeSpanError::InvalidFormat),
             _ => crate::time_span_format_custom::format_customized(*self, format),
         }
     }
 
-    /// Shared implementation for the general short (`"g"`) and general long (`"G"`)
-    /// standard formats. `long` selects `"G"`'s always-two-digit-hours/always-present-
-    /// day/always-full-fraction behavior over `"g"`'s variable-width/trimmed behavior.
+    /// The `(negative, days, hours, minutes, seconds, fraction)` breakdown shared by
+    /// [`Self::format_general_short`] and [`Self::format_general_long`], which each
+    /// render it differently but derive it identically.
     ///
     /// Same `i128`-widening rationale as the [`Display`](std::fmt::Display) impl for
     /// handling `TimeSpan::MIN` without overflow.
-    ///
-    /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.g`/`.G`
-    /// branches)
-    fn format_general(self, long: bool) -> String {
-        use std::fmt::Write;
-
+    fn general_format_components(self) -> (bool, i128, i128, i128, i128, u32) {
         let negative = self.ticks < 0;
         let abs_ticks: i128 = self.abs_ticks_i128();
 
@@ -872,6 +867,18 @@ impl TimeSpan {
         let (total_hours, minutes) = (total_minutes / 60, total_minutes % 60);
         let (days, hours) = (total_hours / 24, total_hours % 24);
 
+        (negative, days, hours, minutes, seconds, fraction)
+    }
+
+    /// The general short (`"g"`) standard format: variable-width hours, days and
+    /// fraction only when present, trailing fraction zeros trimmed.
+    ///
+    /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.g` branch)
+    fn format_general_short(self) -> String {
+        use std::fmt::Write;
+
+        let (negative, days, hours, minutes, seconds, fraction) = self.general_format_components();
+
         // Worst-case length, independent of `self`: 1 (sign) + 8 (`TimeSpan::MAX`'s day
         // count, `10_675_199`, is the longest possible days component) + 1 (":") + 2
         // (hours) + 6 (":mm:ss") + 1 (".") + 7 (fraction digits) = 26.
@@ -882,20 +889,16 @@ impl TimeSpan {
 
         if days > 0 {
             let _ = write!(out, "{days}:");
-        } else if long {
-            out.push_str("0:");
         }
 
-        if !long && hours < 10 {
+        if hours < 10 {
             out.push_str(&hours.to_string());
         } else {
             let _ = write!(out, "{hours:02}");
         }
         let _ = write!(out, ":{minutes:02}:{seconds:02}");
 
-        if long {
-            let _ = write!(out, ".{fraction:07}");
-        } else if fraction != 0 {
+        if fraction != 0 {
             let (value, digits) = Self::trim_fraction_trailing_zeros(fraction);
             let _ = write!(out, ".{value:0width$}", width = digits as usize);
         }
@@ -903,10 +906,40 @@ impl TimeSpan {
         out
     }
 
+    /// The general long (`"G"`) standard format: always-two-digit hours, an
+    /// always-present day component, and an always-full 7-digit fraction.
+    ///
+    /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.G` branch)
+    fn format_general_long(self) -> String {
+        use std::fmt::Write;
+
+        let (negative, days, hours, minutes, seconds, fraction) = self.general_format_components();
+
+        // Worst-case length, independent of `self`: 1 (sign) + 8 (`TimeSpan::MAX`'s day
+        // count, `10_675_199`, is the longest possible days component) + 1 (":") + 2
+        // (hours) + 6 (":mm:ss") + 1 (".") + 7 (fraction digits) = 26.
+        let mut out = String::with_capacity(26);
+        if negative {
+            out.push('-');
+        }
+
+        if days > 0 {
+            let _ = write!(out, "{days}:");
+        } else {
+            out.push_str("0:");
+        }
+
+        let _ = write!(out, "{hours:02}");
+        let _ = write!(out, ":{minutes:02}:{seconds:02}");
+        let _ = write!(out, ".{fraction:07}");
+
+        out
+    }
+
     /// Ticks widened to `i128` and made non-negative. `i128` is wide enough that this
     /// never overflows — `i128::MIN`'s magnitude vastly exceeds any representable `i64`,
     /// unlike a plain `i64::abs()`, which would panic on `TimeSpan::MIN`'s ticks. Shared
-    /// by [`Self::format_general`], [`Self::try_format_standard`], and the
+    /// by [`Self::general_format_components`], [`Self::try_format_standard`], and the
     /// [`Display`](std::fmt::Display) impl, which each compute this identically.
     fn abs_ticks_i128(self) -> i128 {
         i128::from(self.ticks).abs()
@@ -915,7 +948,7 @@ impl TimeSpan {
     /// Extracts the sub-second tick-fraction component from a non-negative tick
     /// magnitude already widened to `i128` (`abs_ticks`, `ticks_per_second` is always
     /// [`Self::TICKS_PER_SECOND`] widened the same way). Shared by
-    /// [`Self::format_general`], [`Self::try_format_standard`], and the
+    /// [`Self::general_format_components`], [`Self::try_format_standard`], and the
     /// [`Display`](std::fmt::Display) impl, which each compute this identically.
     #[allow(
         clippy::cast_possible_truncation,
