@@ -1588,16 +1588,7 @@ impl FromStr for TimeSpan {
 /// `TryFormatStandard` with `StandardFormat.C`)
 impl std::fmt::Display for TimeSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let negative = self.ticks < 0;
-        let abs_ticks: i128 = self.abs_ticks_i128();
-
-        let ticks_per_second = i128::from(Self::TICKS_PER_SECOND);
-        let fraction = Self::fraction_from_abs_ticks(abs_ticks, ticks_per_second);
-        let total_seconds = abs_ticks / ticks_per_second;
-
-        let (total_minutes, seconds) = (total_seconds / 60, total_seconds % 60);
-        let (total_hours, minutes) = (total_minutes / 60, total_minutes % 60);
-        let (days, hours) = (total_hours / 24, total_hours % 24);
+        let (negative, days, hours, minutes, seconds, fraction) = self.general_format_components();
 
         if negative {
             write!(f, "-")?;
