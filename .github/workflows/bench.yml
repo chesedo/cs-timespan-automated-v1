@@ -133,6 +133,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # `always()` above also fires when an *earlier* step (e.g.
+          # "Benchmark base branch") hard-fails for an unrelated infra
+          # reason before /tmp/gungraun-output.txt is ever written — in
+          # that case grep/cat against the missing file would fail
+          # silently and this step would post a misleading "0 benchmarks"
+          # comment. Detect that case directly and post a distinct
+          # message instead of running the normal summary logic.
+          if [ ! -f /tmp/gungraun-output.txt ]; then
+            {
+              echo "<!-- gungraun-benchmark-comparison -->"
+              echo "## Gungraun benchmark comparison (PR head vs base)"
+              echo
+              echo "No gungraun output was captured for this run — an earlier step in this job likely failed before benchmarks could run; see the job's other steps for details."
+            } | gh pr comment "${{ github.event.pull_request.number }}" \
+              --edit-last --create-if-none --body-file -
+            exit 0
+          fi
+
           summary=$(grep '^Gungraun result:' /tmp/gungraun-output.txt || true)
           total=$(grep -oE '[0-9]+ benchmarks finished' /tmp/gungraun-output.txt \
             | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
