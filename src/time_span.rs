@@ -872,7 +872,10 @@ impl TimeSpan {
         let (total_hours, minutes) = (total_minutes / 60, total_minutes % 60);
         let (days, hours) = (total_hours / 24, total_hours % 24);
 
-        let mut out = String::new();
+        // Worst-case length, independent of `self`: 1 (sign) + 8 (`TimeSpan::MAX`'s day
+        // count, `10_675_199`, is the longest possible days component) + 1 (":") + 2
+        // (hours) + 6 (":mm:ss") + 1 (".") + 7 (fraction digits) = 26.
+        let mut out = String::with_capacity(26);
         if negative {
             out.push('-');
         }
