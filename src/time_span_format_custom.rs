@@ -45,13 +45,12 @@ fn pow10_up_to_max_fraction_digits(pow: u32) -> i64 {
     POWERS_OF_TEN[pow as usize]
 }
 
-/// Counts how many *additional* characters immediately following the one the main loop
-/// already consumed repeat `pattern_char`. Callers add 1 back for that already-consumed
-/// character (`let len = 1 + count_repeats(&mut chars, ch);`).
+/// Counts the full run length of `pattern_char`, including the one character the main
+/// loop already consumed to identify this token.
 ///
 /// Cf. DateTimeFormat.ParseRepeatPattern (DateTimeFormat.cs#L197-205)
 fn count_repeats(chars: &mut Peekable<Chars>, pattern_char: char) -> usize {
-    std::iter::from_fn(|| chars.next_if_eq(&pattern_char)).count()
+    1 + std::iter::from_fn(|| chars.next_if_eq(&pattern_char)).count()
 }
 
 /// Writes `value` (always non-negative, matching `FormatDigits`'s own precondition) zero-
@@ -139,7 +138,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
     while let Some(ch) = chars.next() {
         match ch {
             'h' => {
-                let len = 1 + count_repeats(&mut chars, ch);
+                let len = count_repeats(&mut chars, ch);
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -151,7 +150,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 format_digits(&mut result, hours, len as u32);
             }
             'm' => {
-                let len = 1 + count_repeats(&mut chars, ch);
+                let len = count_repeats(&mut chars, ch);
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -163,7 +162,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 format_digits(&mut result, minutes, len as u32);
             }
             's' => {
-                let len = 1 + count_repeats(&mut chars, ch);
+                let len = count_repeats(&mut chars, ch);
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -177,7 +176,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
             'f' => {
                 // The fraction of a second in single-digit precision. The remaining
                 // digits are truncated.
-                let len = 1 + count_repeats(&mut chars, ch);
+                let len = count_repeats(&mut chars, ch);
                 // Unlike the 'h'/'m'/'s' arms above, this cast *is* the only gate on
                 // `len` here — but `len` is bounded by `format`'s own length, i.e. by
                 // how many repeated 'f' characters actually exist in `format`. Reaching
@@ -217,7 +216,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
             'F' => {
                 // Displays the most significant digits of the seconds fraction.
                 // Nothing is displayed if the trimmed value is empty.
-                let len = 1 + count_repeats(&mut chars, ch);
+                let len = count_repeats(&mut chars, ch);
                 // Cf. the 'f' arm above: same len/format-length reasoning applies to
                 // every cast of `len` in this arm.
                 #[allow(
@@ -259,7 +258,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
             'd' => {
                 // tokenLen == 1 : Day as digits with no leading zero.
                 // tokenLen == 2+: Day as digits with leading zero for single-digit days.
-                let len = 1 + count_repeats(&mut chars, ch);
+                let len = count_repeats(&mut chars, ch);
                 if len > 8 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
