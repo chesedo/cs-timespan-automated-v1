@@ -127,6 +127,21 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
         day = -day;
         time = -time;
     }
+    // `hours`/`minutes`/`seconds`/`fraction` are each used in exactly one match arm
+    // below (`'h'`/`'m'`/`'s'`/`'f'`+`'F'` respectively), so computing all four here,
+    // unconditionally, looks wasteful for a format string that only uses one or two of
+    // them (e.g. `"s.ffffff"` never touches `hours`/`minutes`). It isn't: this was
+    // measured (issue #164), by moving each computation into its own single-use match
+    // arm and comparing gungraun `Instructions` counts against this eager version —
+    // every one of 12 `format_customized_gungraun` benchmarks got very slightly *worse*
+    // (roughly +0.04% to +0.1%), including the `fraction_only`-style format that skips
+    // the other three and so should have benefited most. Each of these is a division/
+    // modulo by a compile-time constant, which LLVM already lowers to a cheap multiply-
+    // and-shift rather than real division; grouped together here, the compiler can
+    // apparently share/schedule that sequence as one unit, and de-fusing it into four
+    // separate call sites cost slightly more spread out than computing all four cost
+    // once, upfront. Don't re-split these into per-arm computations without re-
+    // measuring — it was tried and found to be a net regression, not a win.
     let hours = time / TimeSpan::TICKS_PER_HOUR % 24;
     let minutes = time / TimeSpan::TICKS_PER_MINUTE % 60;
     let seconds = time / TimeSpan::TICKS_PER_SECOND % 60;
