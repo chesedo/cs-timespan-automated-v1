@@ -26,6 +26,9 @@
 //! the caller's destination — see `try_format`'s doc comment for why that's a
 //! deliberate tradeoff rather than an oversight.
 
+use std::iter::Peekable;
+use std::str::Chars;
+
 use crate::TimeSpanError;
 use crate::time_span::TimeSpan;
 
@@ -42,15 +45,17 @@ fn pow10_up_to_max_fraction_digits(pow: u32) -> i64 {
     POWERS_OF_TEN[pow as usize]
 }
 
-/// Counts how many characters starting at `pos` (inclusive) repeat `pattern_char`.
+/// Counts how many *additional* characters immediately following the one the main loop
+/// already consumed repeat `pattern_char`. Callers add 1 back for that already-consumed
+/// character (`let len = 1 + count_repeats(&mut chars, ch);`).
 ///
 /// Cf. DateTimeFormat.ParseRepeatPattern (DateTimeFormat.cs#L197-205)
-fn parse_repeat_pattern(format: &[char], pos: usize, pattern_char: char) -> usize {
-    let mut index = pos + 1;
-    while index < format.len() && format[index] == pattern_char {
-        index += 1;
+fn count_repeats(chars: &mut Peekable<Chars>, pattern_char: char) -> usize {
+    let mut count = 0;
+    while chars.next_if_eq(&pattern_char).is_some() {
+        count += 1;
     }
-    index - pos
+    count
 }
 
 /// Writes `value` (always non-negative, matching `FormatDigits`'s own precondition) zero-
@@ -65,45 +70,36 @@ fn format_digits(out: &mut String, value: i64, minimum_length: u32) {
     let _ = write!(out, "{value:0width$}", width = minimum_length as usize);
 }
 
-/// Extracts a quoted literal (`'...'`/`"..."`) starting at `pos` in the format string,
-/// unescaping `\`-escaped characters within the quotes. Returns `(literal text, format
-/// characters consumed including both quote characters)`, or [`TimeSpanError::InvalidFormat`]
-/// if the closing quote is missing or a `\` appears at the very end of the format string.
+/// Consumes a quoted literal (`'...'`/`"..."`) from `chars`, whose next character is the
+/// first one *after* the opening quote (the caller already consumed the opening
+/// `quote_char` from the main loop), unescaping `\`-escaped characters within the quotes
+/// and pushing the unescaped text straight into `result`. Returns `Ok(())` once the
+/// matching closing quote is consumed, or [`TimeSpanError::InvalidFormat`] if `chars` runs
+/// out first — whether the closing quote is missing entirely or a `\` appears at the very
+/// end of the format string.
 ///
 /// Cf. DateTimeFormat.ParseQuoteString (DateTimeFormat.cs#L284-337) — shared by `DateTime`'s
 /// custom-format writer too, hence living in `DateTimeFormat.cs` upstream rather than
 /// `TimeSpanFormat.cs`.
-fn parse_quote_string(format: &[char], pos: usize) -> Result<(String, usize), TimeSpanError> {
-    let format_len = format.len();
-    let begin_pos = pos;
-    let quote_char = format[pos];
-    let mut i = pos + 1;
-    let mut result = String::with_capacity(format_len - pos);
-    let mut found_quote = false;
-
-    while i < format_len {
-        let ch = format[i];
-        i += 1;
+fn parse_quote_string(
+    chars: &mut Peekable<Chars>,
+    quote_char: char,
+    result: &mut String,
+) -> Result<(), TimeSpanError> {
+    while let Some(ch) = chars.next() {
         if ch == quote_char {
-            found_quote = true;
-            break;
+            return Ok(());
         } else if ch == '\\' {
-            if i < format_len {
-                result.push(format[i]);
-                i += 1;
-            } else {
-                return Err(TimeSpanError::InvalidFormat);
+            match chars.next() {
+                Some(escaped) => result.push(escaped),
+                None => return Err(TimeSpanError::InvalidFormat),
             }
         } else {
             result.push(ch);
         }
     }
 
-    if !found_quote {
-        return Err(TimeSpanError::InvalidFormat);
-    }
-
-    Ok((result, i - begin_pos))
+    Err(TimeSpanError::InvalidFormat)
 }
 
 /// Formats `ts` using a custom format string. See `TimeSpan::to_string_format`'s doc
@@ -118,7 +114,6 @@ fn parse_quote_string(format: &[char], pos: usize) -> Result<(String, usize), Ti
               rather than clarify anything"
 )]
 pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, TimeSpanError> {
-    let format_chars: Vec<char> = format.chars().collect();
     let ticks = ts.ticks();
 
     // Cf. TimeSpanFormat.cs#L301-312: `day`/`time` are computed as non-negative
@@ -142,15 +137,13 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
     let seconds = time / TimeSpan::TICKS_PER_SECOND % 60;
     let fraction = time % TimeSpan::TICKS_PER_SECOND;
 
-    let mut result = String::with_capacity(format_chars.len());
-    let mut i = 0usize;
+    let mut result = String::with_capacity(format.len());
+    let mut chars = format.chars().peekable();
 
-    while i < format_chars.len() {
-        let ch = format_chars[i];
-
-        let token_len: usize = match ch {
+    while let Some(ch) = chars.next() {
+        match ch {
             'h' => {
-                let len = parse_repeat_pattern(&format_chars, i, ch);
+                let len = 1 + count_repeats(&mut chars, ch);
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -160,10 +153,9 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                     reason = "len <= 2 is already checked above, so this cast is always exact"
                 )]
                 format_digits(&mut result, hours, len as u32);
-                len
             }
             'm' => {
-                let len = parse_repeat_pattern(&format_chars, i, ch);
+                let len = 1 + count_repeats(&mut chars, ch);
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -173,10 +165,9 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                     reason = "len <= 2 is already checked above, so this cast is always exact"
                 )]
                 format_digits(&mut result, minutes, len as u32);
-                len
             }
             's' => {
-                let len = parse_repeat_pattern(&format_chars, i, ch);
+                let len = 1 + count_repeats(&mut chars, ch);
                 if len > 2 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -186,14 +177,13 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                     reason = "len <= 2 is already checked above, so this cast is always exact"
                 )]
                 format_digits(&mut result, seconds, len as u32);
-                len
             }
             'f' => {
                 // The fraction of a second in single-digit precision. The remaining
                 // digits are truncated.
-                let len = parse_repeat_pattern(&format_chars, i, ch);
+                let len = 1 + count_repeats(&mut chars, ch);
                 // Unlike the 'h'/'m'/'s' arms above, this cast *is* the only gate on
-                // `len` here — but `len` is bounded by `format_chars.len() - i`, i.e. by
+                // `len` here — but `len` is bounded by `format`'s own length, i.e. by
                 // how many repeated 'f' characters actually exist in `format`. Reaching
                 // anywhere near `u32::MAX` would require a `format` string of several
                 // gigabytes, which — besides being unconstructable in any real
@@ -227,12 +217,11 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                               has no possible C# counterpart (string.Length is int-capped)"
                 )]
                 format_digits(&mut result, tmp, len as u32);
-                len
             }
             'F' => {
                 // Displays the most significant digits of the seconds fraction.
                 // Nothing is displayed if the trimmed value is empty.
-                let len = parse_repeat_pattern(&format_chars, i, ch);
+                let len = 1 + count_repeats(&mut chars, ch);
                 // Cf. the 'f' arm above: same len/format-length reasoning applies to
                 // every cast of `len` in this arm.
                 #[allow(
@@ -270,12 +259,11 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                 if effective_digits > 0 {
                     format_digits(&mut result, tmp, effective_digits);
                 }
-                len
             }
             'd' => {
                 // tokenLen == 1 : Day as digits with no leading zero.
                 // tokenLen == 2+: Day as digits with leading zero for single-digit days.
-                let len = parse_repeat_pattern(&format_chars, i, ch);
+                let len = 1 + count_repeats(&mut chars, ch);
                 if len > 8 {
                     return Err(TimeSpanError::InvalidFormat);
                 }
@@ -285,21 +273,16 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
                     reason = "len <= 8 is already checked above, so this cast is always exact"
                 )]
                 format_digits(&mut result, day, len as u32);
-                len
             }
-            '\'' | '"' => {
-                let (literal, consumed) = parse_quote_string(&format_chars, i)?;
-                result.push_str(&literal);
-                consumed
-            }
+            '\'' | '"' => parse_quote_string(&mut chars, ch, &mut result)?,
             '%' => {
                 // Optional format character. For example, format string "%d" will
                 // print day. Most of the cases, "%" can be ignored. "%" at the end of
                 // the format string, or "%%", are both bad-format failures.
-                match format_chars.get(i + 1).copied() {
+                match chars.peek().copied() {
                     Some(next) if next != '%' => {
+                        chars.next();
                         result.push_str(&format_customized(ts, &next.to_string())?);
-                        2
                     }
                     _ => return Err(TimeSpanError::InvalidFormat),
                 }
@@ -307,11 +290,8 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
             '\\' => {
                 // Escaped character. Can be used to insert a character into the
                 // format string, e.g. "\d" inserts the literal character 'd'.
-                match format_chars.get(i + 1).copied() {
-                    Some(next) => {
-                        result.push(next);
-                        2
-                    }
+                match chars.next() {
+                    Some(next) => result.push(next),
                     None => return Err(TimeSpanError::InvalidFormat),
                 }
             }
@@ -319,9 +299,7 @@ pub(crate) fn format_customized(ts: TimeSpan, format: &str) -> Result<String, Ti
             // unescaped literal text, which custom formats don't allow — every literal
             // character must be quoted or `\`-escaped.
             _ => return Err(TimeSpanError::InvalidFormat),
-        };
-
-        i += token_len;
+        }
     }
 
     Ok(result)
