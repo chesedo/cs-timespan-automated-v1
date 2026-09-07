@@ -14,6 +14,12 @@ on:
 jobs:
   gungraun:
     runs-on: ubuntu-latest
+    # Scoped narrowly to what this job's steps need, rather than broadening
+    # the workflow's default GITHUB_TOKEN permissions: contents:read for
+    # actions/checkout, pull-requests:write for the PR-comment step below.
+    permissions:
+      contents: read
+      pull-requests: write
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
       # Pinned independently of CARGO_TARGET_DIR (which the base-branch step
@@ -68,7 +74,7 @@ jobs:
           base_names=$(cd /tmp/base/benches 2>/dev/null && ls *_gungraun.rs 2>/dev/null | sed 's/\.rs$//' || true)
           if [ -n "$base_names" ]; then
             base_args=$(echo "$base_names" | sed 's/^/--bench /' | tr '\n' ' ')
-            nix develop --command cargo bench --manifest-path /tmp/base/Cargo.toml $base_args -- --save-baseline=base
+            nix develop --command cargo bench --quiet --manifest-path /tmp/base/Cargo.toml $base_args -- --save-baseline=base
             echo "has_baseline=true" >> "$GITHUB_OUTPUT"
           else
             echo "gungraun benches don't exist on the base branch yet — nothing to compare against."
@@ -87,12 +93,12 @@ jobs:
         run: |
           set +e
           if [ "$HAS_BASELINE" = "true" ]; then
-            nix develop --command cargo bench $BENCH_ARGS -- --baseline=base 2>&1 | tee /tmp/gungraun-output.txt
+            nix develop --command cargo bench --quiet $BENCH_ARGS -- --baseline=base 2>&1 | tee /tmp/gungraun-output.txt
           else
             {
               echo "No baseline available on the base branch (gungraun benches were just introduced), so this run only establishes numbers — nothing to compare against yet."
               echo
-              nix develop --command cargo bench $BENCH_ARGS
+              nix develop --command cargo bench --quiet $BENCH_ARGS
             } 2>&1 | tee /tmp/gungraun-output.txt
           fi
           status="${PIPESTATUS[0]}"
@@ -107,3 +113,43 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           exit "$status"
+
+      # Surfaces the same comparison inline in the PR conversation, not just
+      # on the Actions run's summary page. Runs even when the step above
+      # failed the job (a real regression) so the comment still appears, and
+      # only when there was something to compare (this job only runs on the
+      # pull_request trigger already, so github.event.pull_request is always
+      # set here). --edit-last updates the same comment across re-runs
+      # instead of spamming a new one on every push; --create-if-none covers
+      # the first run on a PR, when there's nothing yet to edit.
+      #
+      # The full per-benchmark output (one "Gungraun result: ..." summary line
+      # per bench file, each followed by every individual benchmark's
+      # Instructions/L1/LL/RAM/cycle counts) runs to several hundred lines, so
+      # only the per-file summary lines are shown inline; the full detail goes
+      # in a collapsed <details> block for anyone who wants it.
+      - name: Post benchmark comparison as PR comment
+        if: always() && steps.benches.outputs.has_benches == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          summary=$(grep '^Gungraun result:' /tmp/gungraun-output.txt || true)
+          total=$(grep -oE '[0-9]+ benchmarks finished' /tmp/gungraun-output.txt \
+            | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+
+          {
+            echo "<!-- gungraun-benchmark-comparison -->"
+            echo "## Gungraun benchmark comparison (PR head vs base)"
+            echo
+            echo "$summary"
+            echo
+            echo "<details>"
+            echo "<summary>Show full comparison ($total benchmarks)</summary>"
+            echo
+            echo '```'
+            cat /tmp/gungraun-output.txt
+            echo '```'
+            echo
+            echo "</details>"
+          } | gh pr comment "${{ github.event.pull_request.number }}" \
+            --edit-last --create-if-none --body-file -
