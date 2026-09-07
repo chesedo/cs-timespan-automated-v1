@@ -26,6 +26,7 @@
 //! the caller's destination — see `try_format`'s doc comment for why that's a
 //! deliberate tradeoff rather than an oversight.
 
+use std::fmt::Write;
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -60,7 +61,6 @@ fn count_repeats(chars: &mut Peekable<Chars>, pattern_char: char) -> usize {
 ///
 /// Cf. DateTimeFormat.FormatDigits (DateTimeFormat.cs#L164-195)
 fn format_digits(out: &mut String, value: i64, minimum_length: u32) {
-    use std::fmt::Write;
     debug_assert!(value >= 0, "FormatDigits: value >= 0");
     let _ = write!(out, "{value:0width$}", width = minimum_length as usize);
 }

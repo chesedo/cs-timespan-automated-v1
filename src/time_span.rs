@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::str::FromStr;
 
 use crate::error::TimeSpanError;
@@ -875,8 +876,6 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.g` branch)
     fn format_general_short(self) -> String {
-        use std::fmt::Write;
-
         let (negative, days, hours, minutes, seconds, fraction) = self.general_format_components();
 
         // Worst-case length, independent of `self`: 1 (sign) + 8 (`TimeSpan::MAX`'s day
@@ -911,8 +910,6 @@ impl TimeSpan {
     ///
     /// Cf. TimeSpanFormat.cs#L109-L294 (`TryFormatStandard`, `StandardFormat.G` branch)
     fn format_general_long(self) -> String {
-        use std::fmt::Write;
-
         let (negative, days, hours, minutes, seconds, fraction) = self.general_format_components();
 
         // Worst-case length, independent of `self`: 1 (sign) + 8 (`TimeSpan::MAX`'s day
