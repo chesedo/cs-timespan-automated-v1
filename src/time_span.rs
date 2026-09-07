@@ -920,15 +920,10 @@ impl TimeSpan {
             out.push('-');
         }
 
-        if days > 0 {
-            let _ = write!(out, "{days}:");
-        } else {
-            out.push_str("0:");
-        }
-
-        let _ = write!(out, "{hours:02}");
-        let _ = write!(out, ":{minutes:02}:{seconds:02}");
-        let _ = write!(out, ".{fraction:07}");
+        let _ = write!(
+            out,
+            "{days}:{hours:02}:{minutes:02}:{seconds:02}.{fraction:07}"
+        );
 
         out
     }
